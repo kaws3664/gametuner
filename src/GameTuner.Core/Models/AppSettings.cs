@@ -4,6 +4,8 @@ public sealed class AppSettings
 {
     public string AiEndpoint { get; set; } = "https://api.openai.com/v1";
     public string AiModel { get; set; } = "";
+    public string AiWireApi { get; set; } = "chat";
+    public string AiUserAgent { get; set; } = "";
     public string AiApiKeyCredentialName { get; set; } = "GameTuner.OpenAI.ApiKey";
     public int ExitWaitTimeoutSeconds { get; set; } = 900;
     public int CaptureDurationSeconds { get; set; } = 300;

@@ -41,6 +41,21 @@ dotnet run --project src/GameTuner.App/GameTuner.App.csproj
 
 界面中的“应用个性化建议”和“跳过 / 保留当前”在每轮退出后才会启用。恢复原始设置同样需要用户先退出游戏。
 
+## AI 评审（可选）
+
+- 接口协议默认 `chat`（`/chat/completions`），也支持 `responses`（`/responses`）。留空模型或密钥、请求失败或结果校验失败时，回退到本地规则评审。
+- 密钥只保存到 Windows 凭据管理器。客户端标识（User-Agent）留空时不覆盖请求头；AgentRouter 要求受支持的编程客户端标识，否则会拒绝请求。
+- AgentRouter 的 `gpt-6.1-sol` 仅支持 Responses API；该路径使用 `reasoning.effort=low` 和 `max_output_tokens=3000`。
+
+AgentRouter 配置示例（填写后点击“保存 AI 设置”）：
+
+```text
+API 端点：https://agentrouter.org/v1
+模型：gpt-6.1-sol
+接口协议：responses
+客户端标识：codex_cli_rs/0.1.0
+```
+
 ## 验证
 
 ```powershell

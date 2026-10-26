@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using GameTuner.Core.Infrastructure;
 using GameTuner.Core.Mcp;
@@ -32,6 +33,7 @@ public sealed class MainViewModel : ViewModelBase
     private double _roundProgress;
     private bool _isBusy, _isPrecisionWarning, _isDecisionPending;
     private string _aiEndpoint = "", _aiModel = "", _aiApiKey = "", _saveAiStatus = "";
+    private string _aiWireApi = "chat", _aiUserAgent = "";
     private string _nvidiaStatus = "正在检查 NVIDIA App";
     private string _telemetryLogDirectory;
     private int _captureMinutes = 5;
@@ -57,6 +59,8 @@ public sealed class MainViewModel : ViewModelBase
         _statusMessage = _selectedGame.MethodStepDescription;
         _aiEndpoint = settings.AiEndpoint;
         _aiModel = settings.AiModel;
+        _aiWireApi = settings.AiWireApi;
+        _aiUserAgent = settings.AiUserAgent;
         _telemetryLogDirectory = settings.TelemetryLogDirectory;
         _captureMinutes = CaptureMinuteChoices.Contains(settings.CaptureDurationSeconds / 60)
             ? settings.CaptureDurationSeconds / 60
@@ -118,6 +122,8 @@ public sealed class MainViewModel : ViewModelBase
     public string NvidiaStatus { get => _nvidiaStatus; private set => SetProperty(ref _nvidiaStatus, value); }
     public string AiEndpoint { get => _aiEndpoint; set => SetProperty(ref _aiEndpoint, value); }
     public string AiModel { get => _aiModel; set => SetProperty(ref _aiModel, value); }
+    public string AiWireApi { get => _aiWireApi; set => SetProperty(ref _aiWireApi, value); }
+    public string AiUserAgent { get => _aiUserAgent; set => SetProperty(ref _aiUserAgent, value); }
     public string AiApiKey { get => _aiApiKey; set => SetProperty(ref _aiApiKey, value); }
     public string SaveAiStatus { get => _saveAiStatus; private set => SetProperty(ref _saveAiStatus, value); }
     public string TelemetryLogDirectory { get => _telemetryLogDirectory; set => SetProperty(ref _telemetryLogDirectory, value); }
@@ -248,7 +254,14 @@ public sealed class MainViewModel : ViewModelBase
     {
         try
         {
+            var wireApi = AiWireApi.Trim();
+            if (wireApi is not ("chat" or "responses"))
+            {
+                throw new InvalidDataException("接口协议只能填写 chat 或 responses。");
+            }
+
             _settings.AiEndpoint = AiEndpoint.Trim(); _settings.AiModel = AiModel.Trim();
+            _settings.AiWireApi = wireApi; _settings.AiUserAgent = AiUserAgent.Trim();
             _settings.TelemetryLogDirectory = TelemetryLogDirectory.Trim();
             if (!string.IsNullOrWhiteSpace(AiApiKey)) { _credentialStore.Write(_settings.AiApiKeyCredentialName, AiApiKey.Trim()); AiApiKey = ""; }
             await _settingsStore.SaveAsync(_settings);

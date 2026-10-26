@@ -54,6 +54,10 @@ public sealed class OpenAiCompatibleAdvisor(
     ICredentialStore credentialStore,
     IAiAdvisor fallback) : IAiAdvisor
 {
+    private const string PromptInstructions =
+        "你是PC游戏性能调优顾问。只能从给定候选中选择，输出JSON，" +
+        "字段 candidateId 和 explanation。解释使用简体中文，不得声称精确测量。";
+
     public async Task<AiAdvice> ReviewAsync(
         TuningGoal goal,
         PerformanceMetrics metrics,
@@ -83,65 +87,30 @@ public sealed class OpenAiCompatibleAdvisor(
 
         try
         {
-            var endpoint = settings.AiEndpoint.TrimEnd('/') + "/chat/completions";
+            var wireApi = settings.AiWireApi;
+            var path = wireApi switch
+            {
+                "chat" => "/chat/completions",
+                "responses" => "/responses",
+                _ => throw new InvalidDataException("接口协议只能填写 chat 或 responses。")
+            };
+            var endpoint = settings.AiEndpoint.TrimEnd('/') + path;
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            request.Content = JsonContent.Create(new
+            if (!string.IsNullOrWhiteSpace(settings.AiUserAgent))
             {
-                model = settings.AiModel,
-                temperature = 0.1,
-                response_format = new { type = "json_object" },
-                messages = new object[]
-                {
-                    new
-                    {
-                        role = "system",
-                        content =
-                            "你是PC游戏性能调优顾问。只能从给定候选中选择，输出JSON，" +
-                            "字段 candidateId 和 explanation。解释使用简体中文，不得声称精确测量。"
-                    },
-                    new
-                    {
-                        role = "user",
-                        content = JsonSerializer.Serialize(
-                            new
-                            {
-                                goal,
-                                metrics,
-                                candidates = allowedCandidates.Select(candidate => new
-                                {
-                                    candidate.Id,
-                                    candidate.Label,
-                                    candidate.Preset,
-                                    candidate.SettingOverrides,
-                                    candidate.Rationale
-                                })
-                            },
-                            JsonFileStore.Options)
-                    }
-                }
-            });
+                request.Headers.UserAgent.ParseAdd(settings.AiUserAgent);
+            }
+
+            request.Content = BuildRequestContent(
+                wireApi,
+                BuildPrompt(goal, metrics, allowedCandidates));
 
             using var response = await httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(
                 cancellationToken: cancellationToken);
-            var content = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                throw new InvalidDataException("模型没有返回内容。");
-            }
-
-            var parsed = JsonNode.Parse(content) as JsonObject;
-            var candidateId = parsed?["candidateId"]?.GetValue<string>() ?? "";
-            var explanation = parsed?["explanation"]?.GetValue<string>() ?? "";
-            if (!allowedCandidates.Any(candidate => candidate.Id == candidateId) ||
-                string.IsNullOrWhiteSpace(explanation))
-            {
-                throw new InvalidDataException("模型输出未通过候选白名单校验。");
-            }
-
-            return new AiAdvice(candidateId, explanation, UsedFallback: false);
+            return ValidateResponse(ExtractResponseText(wireApi, payload), allowedCandidates);
         }
         catch (OperationCanceledException)
         {
@@ -155,5 +124,100 @@ public sealed class OpenAiCompatibleAdvisor(
                 allowedCandidates,
                 cancellationToken);
         }
+    }
+
+    private static string BuildPrompt(
+        TuningGoal goal,
+        PerformanceMetrics metrics,
+        IReadOnlyList<TuningCandidate> allowedCandidates) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                goal,
+                metrics,
+                candidates = allowedCandidates.Select(candidate => new
+                {
+                    candidate.Id,
+                    candidate.Label,
+                    candidate.Preset,
+                    candidate.SettingOverrides,
+                    candidate.Rationale
+                })
+            },
+            JsonFileStore.Options);
+
+    private JsonContent BuildRequestContent(string wireApi, string prompt) =>
+        wireApi switch
+        {
+            "chat" => JsonContent.Create(new
+            {
+                model = settings.AiModel,
+                temperature = 0.1,
+                response_format = new { type = "json_object" },
+                messages = new object[]
+                {
+                    new { role = "system", content = PromptInstructions },
+                    new { role = "user", content = prompt }
+                }
+            }),
+            "responses" => JsonContent.Create(new
+            {
+                model = settings.AiModel,
+                input = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new[]
+                        {
+                            new { type = "input_text", text = PromptInstructions + "\n" + prompt }
+                        }
+                    }
+                },
+                max_output_tokens = 3000,
+                reasoning = new { effort = "low" }
+            }),
+            _ => throw new InvalidDataException("接口协议只能填写 chat 或 responses。")
+        };
+
+    private static string? ExtractResponseText(string wireApi, JsonObject? payload)
+    {
+        if (wireApi == "chat")
+        {
+            return payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
+        }
+
+        if (payload?["output"] is not JsonArray output)
+        {
+            return null;
+        }
+
+        return string.Concat(output.OfType<JsonObject>()
+            .Where(item => item["type"]?.GetValue<string>() == "message")
+            .SelectMany(item => item["content"] as JsonArray ?? [])
+            .OfType<JsonObject>()
+            .Where(item => item["type"]?.GetValue<string>() == "output_text")
+            .Select(item => item["text"]?.GetValue<string>()));
+    }
+
+    private static AiAdvice ValidateResponse(
+        string? content,
+        IReadOnlyList<TuningCandidate> allowedCandidates)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new InvalidDataException("模型没有返回内容。");
+        }
+
+        var parsed = JsonNode.Parse(content) as JsonObject;
+        var candidateId = parsed?["candidateId"]?.GetValue<string>() ?? "";
+        var explanation = parsed?["explanation"]?.GetValue<string>() ?? "";
+        if (!allowedCandidates.Any(candidate => candidate.Id == candidateId) ||
+            string.IsNullOrWhiteSpace(explanation))
+        {
+            throw new InvalidDataException("模型输出未通过候选白名单校验。");
+        }
+
+        return new AiAdvice(candidateId, explanation, UsedFallback: false);
     }
 }

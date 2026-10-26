@@ -475,6 +475,25 @@
                                                     <TextBox Text="{Binding AiModel, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                             </Grid>
+                                            <Grid Margin="0,14,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="12" />
+                                                    <ColumnDefinition Width="2*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="接口协议（chat / responses）" Style="{StaticResource MetricLabel}"
+                                                               Margin="0,0,0,7" />
+                                                    <TextBox Text="{Binding AiWireApi, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="chat 使用 Chat Completions API；responses 使用 Responses API" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="客户端标识（User-Agent，可留空）" Style="{StaticResource MetricLabel}"
+                                                               Margin="0,0,0,7" />
+                                                    <TextBox Text="{Binding AiUserAgent, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="留空不覆盖 User-Agent；AgentRouter 需要受支持的编程客户端标识" />
+                                                </StackPanel>
+                                            </Grid>
                                             <TextBlock Text="API KEY" Style="{StaticResource MetricLabel}"
                                                        Margin="0,14,0,7" />
                                             <Grid>

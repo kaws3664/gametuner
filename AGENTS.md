@@ -38,6 +38,9 @@ dotnet test GameTuner.sln --no-build --no-restore
 - 推理模型默认 effort=max，会烧光 max_output_tokens 只输出推理；请求体需带 `"reasoning":{"effort":"low"}` 和足够的 `max_output_tokens`（≥300）。
 - Prompt 含字面「连接成功」会被网关内容审查 400 content-blocked（只拦输入，模型输出没事）。
 - 测试一律打本地假服务器，不许真调网关；真实连通性验证由人工会话单独执行。
+- 网关只接受 CN/EN/FR/DE/RU 的正文：日文/韩文/西语/葡语等文本、base64 与二进制块会 400 content-blocked。
+  发给模型的 prompt 里不要贴这类内容（含日文注释的代码先把注释译成英文）；发前跑 `python tools/agentrouter-preflight.py <路径>`。
+
 
 ## 语言与风格
 

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
         mc:Ignorable="d"
         Title="FrameSmith"
         Width="1180"
@@ -10,23 +11,28 @@
         MinWidth="1000"
         MinHeight="700"
         WindowStartupLocation="CenterScreen"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        ui:TitleBar.Height="32"
+        FontFamily="{StaticResource BodyFont}"
+        FontSize="{StaticResource FontSize13}"
+        UseLayoutRounding="True"
         Background="{StaticResource BackdropBrush}">
     <Window.Resources>
         <DropShadowEffect x:Key="HeroGlow"
-                          Color="#B8F33D"
+                          Color="{StaticResource LimeColor}"
                           BlurRadius="44"
                           Opacity="0.16"
                           ShadowDepth="0" />
         <Style x:Key="MetricCard" TargetType="Border" BasedOn="{StaticResource PanelBorder}">
-            <Setter Property="Padding" Value="15,13" />
-            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="MinHeight" Value="112" />
         </Style>
     </Window.Resources>
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="18" />
+            <RowDefinition Height="24" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -35,29 +41,34 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="9" Height="34" Background="{StaticResource LimeBrush}" CornerRadius="3"
+            <Grid VerticalAlignment="Center" Margin="0,0,16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="9" Height="34" Background="{StaticResource LimeBrush}" CornerRadius="8"
                         Margin="0,0,12,0" Effect="{StaticResource HeroGlow}" />
-                <StackPanel>
+                <StackPanel Grid.Column="1">
                     <TextBlock Text="FRAMESMITH" FontFamily="{StaticResource DisplayFont}"
-                               FontSize="24" FontWeight="Bold" />
+                               FontSize="{StaticResource FontSize28}" FontWeight="Bold" />
                     <TextBlock Text="{Binding HeroSubtitle}"
-                               Style="{StaticResource EyebrowText}" Margin="0,2,0,0" />
+                               Style="{StaticResource EyebrowText}" Margin="0,4,0,0"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding HeroSubtitle}" />
                 </StackPanel>
-            </StackPanel>
+            </Grid>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="20"
-                        Padding="11,7" Margin="0,0,8,0">
+                <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="12"
+                        Padding="12,8" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="6" Height="6" Fill="{StaticResource LimeBrush}" Margin="0,0,7,0" />
-                        <TextBlock Text="{Binding NvidiaStatus}" FontSize="11"
+                        <Ellipse Width="6" Height="6" Fill="{StaticResource LimeBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding NvidiaStatus}" FontSize="{StaticResource FontSize12}"
                                    Foreground="{StaticResource MutedBrush}" />
                     </StackPanel>
                 </Border>
-                <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="20" Padding="11,7">
+                <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="12" Padding="12,8">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="6" Height="6" Fill="{StaticResource OrangeBrush}" Margin="0,0,7,0" />
-                        <TextBlock Text="RTX TUNING / v0.1" FontSize="11"
+                        <Ellipse Width="6" Height="6" Fill="{StaticResource OrangeBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="RTX TUNING / v0.1" FontSize="{StaticResource FontSize12}"
                                    Foreground="{StaticResource MutedBrush}" />
                     </StackPanel>
                 </Border>
@@ -66,9 +77,9 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="318" />
-                <ColumnDefinition Width="18" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="288" MaxWidth="336" />
+                <ColumnDefinition Width="24" />
+                <ColumnDefinition Width="2.5*" />
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Style="{StaticResource PanelBorder}" Padding="0">
@@ -77,48 +88,48 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="20">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="16">
                             <TextBlock Text="01 / OBJECTIVE" Style="{StaticResource EyebrowText}" />
                             <TextBlock Text="定义这次调优的边界" FontFamily="{StaticResource DisplayFont}"
-                                       FontSize="22" FontWeight="SemiBold" Margin="0,8,0,6" />
+                                       FontSize="{StaticResource FontSize20}" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <TextBlock Text="不用预设换皮。根据本机实际运行数据逐项调整；1% Low 底线为目标帧率的 90%。"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="12"
-                                       TextWrapping="Wrap" LineHeight="19" Margin="0,0,0,16" />
+                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                       TextWrapping="Wrap" LineHeight="20" Margin="0,0,0,16" />
 
-                            <TextBlock Text="游戏" Style="{StaticResource MetricLabel}" Margin="0,0,0,7" />
+                            <TextBlock Text="游戏" Style="{StaticResource MetricLabel}" Margin="0,0,0,8" />
                             <ComboBox ItemsSource="{Binding AvailableGames}"
                                       SelectedItem="{Binding SelectedGame}"
                                       IsEnabled="{Binding IsProfileSwitchAllowed}"
                                       DisplayMemberPath="DisplayName" />
                             <TextBlock Text="{Binding SelectedGame.ConfigScopeDescription}"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                       TextWrapping="Wrap" Margin="2,6,0,16" />
+                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                       TextWrapping="Wrap" Margin="0,4,0,16" />
 
-                            <TextBlock Text="目标描述" Style="{StaticResource MetricLabel}" Margin="0,0,0,7" />
+                            <TextBlock Text="目标描述" Style="{StaticResource MetricLabel}" Margin="0,0,0,8" />
                             <TextBox Text="{Binding GoalText, UpdateSourceTrigger=PropertyChanged}"
                                      IsEnabled="{Binding IsSetupEnabled}" />
                             <TextBlock Text="支持自然语言，如“60帧，画质优先”"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                       Margin="2,6,0,16" />
-                            <Border Background="#162019"
-                                    BorderBrush="#33452E"
+                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                       TextWrapping="Wrap" Margin="0,4,0,16" />
+                            <Border Background="{StaticResource HintBrush}"
+                                    BorderBrush="{StaticResource HintLineBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="9"
-                                    Padding="11,9"
+                                    CornerRadius="8"
+                                    Padding="12,8"
                                     Margin="0,0,0,16">
                                 <StackPanel>
                                     <TextBlock Text="每一轮你要做什么"
-                                               FontSize="11"
+                                               FontSize="{StaticResource FontSize12}"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource LimeBrush}" />
                                     <TextBlock Text="{Binding StepDescriptionText}"
-                                               Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                               TextWrapping="Wrap" Margin="0,5,0,0" />
+                                               Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                               TextWrapping="Wrap" Margin="0,4,0,0" />
                                 </StackPanel>
                             </Border>
 
-                            <TextBlock Text="目标帧率" Style="{StaticResource MetricLabel}" Margin="0,0,0,7" />
+                            <TextBlock Text="目标帧率" Style="{StaticResource MetricLabel}" Margin="0,0,0,8" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -128,39 +139,39 @@
                                         IsSnapToTickEnabled="True"
                                         Value="{Binding TargetFps, UpdateSourceTrigger=PropertyChanged}"
                                         IsEnabled="{Binding IsSetupEnabled}"
-                                        VerticalAlignment="Center" Margin="0,0,14,0" />
+                                        VerticalAlignment="Center" Margin="0,0,12,0" />
                                 <TextBox Grid.Column="1"
                                          Text="{Binding TargetFps, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
                                          IsEnabled="{Binding IsSetupEnabled}"
                                          HorizontalContentAlignment="Center" />
                             </Grid>
 
-                            <TextBlock Text="偏好" Style="{StaticResource MetricLabel}" Margin="0,20,0,7" />
+                            <TextBlock Text="偏好" Style="{StaticResource MetricLabel}" Margin="0,16,0,8" />
                             <ComboBox ItemsSource="{Binding ModeChoices}"
                                       SelectedItem="{Binding SelectedMode}"
                                       IsEnabled="{Binding IsSetupEnabled}"
                                       DisplayMemberPath="Label" />
                             <TextBlock Text="{Binding SelectedMode.Description}"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                       Margin="2,6,0,18" />
+                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                       TextWrapping="Wrap" Margin="0,4,0,16" />
 
                             <StackPanel Visibility="{Binding IsCaptureDurationVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="每轮采集时长（分钟）" Style="{StaticResource MetricLabel}" Margin="0,0,0,7" />
+                                <TextBlock Text="每轮采集时长（分钟）" Style="{StaticResource MetricLabel}" Margin="0,0,0,8" />
                                 <ComboBox ItemsSource="{Binding CaptureMinuteChoices}"
                                           SelectedItem="{Binding CaptureMinutes}"
                                           IsEnabled="{Binding IsSetupEnabled}" />
                                 <TextBlock Text="推荐 5 分钟；3 分钟较快，10/15 分钟更稳。范围 3–15 分钟。"
-                                           Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                           TextWrapping="Wrap" Margin="2,6,0,18" />
+                                           Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                           TextWrapping="Wrap" Margin="0,4,0,16" />
                             </StackPanel>
 
                             <Border Background="{StaticResource InkBrush}"
                                     BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                    CornerRadius="9" Padding="12" Margin="0,4,0,0">
+                                    CornerRadius="8" Padding="12" Margin="0,4,0,0">
                                 <StackPanel>
                                     <TextBlock Text="TARGET SEMANTICS" Style="{StaticResource EyebrowText}" />
-                                    <TextBlock Margin="0,7,0,0" FontFamily="{StaticResource MonoFont}"
-                                               FontSize="11" Foreground="{StaticResource MutedBrush}">
+                                    <TextBlock Margin="0,8,0,0" FontFamily="{StaticResource MonoFont}"
+                                               FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}">
                                         <Run Text="AVG ≥ " />
                                         <Run Text="{Binding TargetFps, StringFormat={}{0:0}}" Foreground="{StaticResource TextBrush}" />
                                         <Run Text="  /  1% LOW ≥ " />
@@ -172,14 +183,14 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="1" Margin="20">
+                    <StackPanel Grid.Row="1" Margin="16">
                         <Button Content="开始三轮实测" Command="{Binding StartCommand}"
                                 Style="{StaticResource PrimaryButton}" />
                         <Button Content="取消当前会话" Command="{Binding CancelCommand}"
                                 Style="{StaticResource GhostButton}" Margin="0,8,0,0" />
                         <TextBlock Text="{Binding ConfigScopeStatus}"
-                                   Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,0" />
+                                   Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -187,91 +198,98 @@
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
+                    <RowDefinition Height="16" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="16" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Style="{StaticResource PanelBorder}" Padding="20">
+                <Border Grid.Row="0" Style="{StaticResource PanelBorder}" Padding="24,16">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="8" Height="8" Fill="{StaticResource LimeBrush}"
-                                         Margin="0,0,9,0" Effect="{StaticResource HeroGlow}" />
+                                         Margin="0,0,8,0" Effect="{StaticResource HeroGlow}" />
                                 <TextBlock Text="{Binding StatusTitle}" FontFamily="{StaticResource MonoFont}"
-                                           FontSize="11" FontWeight="Bold" Foreground="{StaticResource LimeBrush}" />
+                                           FontSize="{StaticResource FontSize12}" FontWeight="Bold" Foreground="{StaticResource LimeBrush}" />
                                 <TextBlock Text="{Binding RoundLabel}" FontFamily="{StaticResource MonoFont}"
-                                           FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="16,0,0,0" />
+                                           FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" Margin="16,0,0,0" />
                             </StackPanel>
-                            <TextBlock Text="{Binding StatusMessage}" FontSize="13" LineHeight="20"
-                                       TextWrapping="Wrap" Margin="0,9,24,13" />
+                            <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource FontSize13}" LineHeight="20"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusMessage}" Margin="0,12,0,16" />
                             <ProgressBar Value="{Binding RoundProgress, Mode=OneWay}" Minimum="0" Maximum="1" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="190">
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
                             <TextBlock Text="CURRENT BEST" Style="{StaticResource EyebrowText}"
                                        HorizontalAlignment="Right" />
                             <TextBlock Text="{Binding FinalCandidateLabel}"
-                                       FontFamily="{StaticResource DisplayFont}" FontSize="18"
-                                       FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,6,0,0" />
+                                       FontFamily="{StaticResource DisplayFont}" FontSize="{StaticResource FontSize16}"
+                                       FontWeight="SemiBold" TextAlignment="Right" Margin="0,8,0,0"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding FinalCandidateLabel}" />
                             <TextBlock Text="{Binding FinalCandidateReason}"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                       TextWrapping="Wrap" MaxWidth="300"
-                                       TextAlignment="Right" Margin="0,5,0,0" />
+                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding FinalCandidateReason}"
+                                       TextAlignment="Right" Margin="0,4,0,0" />
                         </StackPanel>
                     </Grid>
                 </Border>
 
                 <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="14" />
-                        <ColumnDefinition Width="300" />
-                    </Grid.ColumnDefinitions>
-
-                    <TabControl Grid.Column="0">
+                    <TabControl>
                         <TabItem Header="实时表现">
-                            <Grid Margin="0,14,0,0">
+                            <Grid Margin="0,12,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="14" />
+                                    <RowDefinition Height="16" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <UniformGrid Grid.Row="0" Columns="4">
-                                    <Border Style="{StaticResource MetricCard}">
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Style="{StaticResource MetricCard}">
                                         <StackPanel>
-                                            <TextBlock Text="AVERAGE FPS" Style="{StaticResource MetricLabel}" />
+                                            <TextBlock Text="平均帧率" Style="{StaticResource MetricLabel}" />
                                             <TextBlock Text="{Binding AverageFps}" Style="{StaticResource MetricValue}" />
-                                            <TextBlock Text="实时均值" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                                            <TextBlock Text="实时均值" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource MetricCard}">
+                                    <Border Grid.Column="2" Style="{StaticResource MetricCard}">
                                         <StackPanel>
-                                            <TextBlock Text="1% LOW / P99" Style="{StaticResource MetricLabel}" />
+                                            <TextBlock Text="1% LOW" Style="{StaticResource MetricLabel}" />
                                             <TextBlock Text="{Binding LowFps}" Style="{StaticResource MetricValue}"
                                                        Foreground="{StaticResource LimeBrush}" />
-                                            <TextBlock Text="分段统计均值" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                                            <TextBlock Text="分段统计均值" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource MetricCard}">
+                                    <Border Grid.Column="4" Style="{StaticResource MetricCard}">
                                         <StackPanel>
-                                            <TextBlock Text="GPU LOAD" Style="{StaticResource MetricLabel}" />
+                                            <TextBlock Text="GPU 负载" Style="{StaticResource MetricLabel}" />
                                             <TextBlock Text="{Binding GpuUtil}" Style="{StaticResource MetricValue}" />
-                                            <TextBlock Text="图形利用率" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                                            <TextBlock Text="图形利用率" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource MetricCard}" Margin="0">
+                                    <Border Grid.Column="6" Style="{StaticResource MetricCard}">
                                         <StackPanel>
-                                            <TextBlock Text="CPU LOAD" Style="{StaticResource MetricLabel}" />
+                                            <TextBlock Text="CPU 负载" Style="{StaticResource MetricLabel}" />
                                             <TextBlock Text="{Binding CpuUtil}" Style="{StaticResource MetricValue}" />
-                                            <TextBlock Text="处理器利用率" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                                            <TextBlock Text="处理器利用率" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
                                         </StackPanel>
                                     </Border>
-                                </UniformGrid>
+                                </Grid>
 
                                 <Border Grid.Row="2" Style="{StaticResource PanelBorder}">
                                     <Grid>
@@ -281,171 +299,189 @@
                                         </Grid.RowDefinitions>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="3*" />
+                                                <ColumnDefinition Width="16" />
+                                                <ColumnDefinition Width="2*" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
                                                 <TextBlock Text="ROUND LOG" Style="{StaticResource EyebrowText}" />
                                                 <TextBlock Text="每次单项变更都留下可追溯结果"
                                                            FontFamily="{StaticResource DisplayFont}"
-                                                           FontSize="18" Margin="0,5,0,0" />
+                                                           FontSize="{StaticResource FontSize16}" Margin="0,4,0,0"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="每次单项变更都留下可追溯结果" />
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Bottleneck}" FontSize="11"
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Bottleneck}" FontSize="{StaticResource FontSize12}"
                                                            Foreground="{StaticResource MutedBrush}"
-                                                           HorizontalAlignment="Right" />
+                                                           TextAlignment="Right" TextTrimming="CharacterEllipsis" ToolTip="{Binding Bottleneck}" />
                                                 <TextBlock Text="{Binding Vram}" FontFamily="{StaticResource MonoFont}"
-                                                           FontSize="11" Foreground="{StaticResource OrangeBrush}"
-                                                           HorizontalAlignment="Right" Margin="0,3,0,0" />
+                                                           FontSize="{StaticResource FontSize12}" Foreground="{StaticResource OrangeBrush}"
+                                                           TextAlignment="Right" Margin="0,4,0,0"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Vram}" />
                                             </StackPanel>
                                         </Grid>
 
-                                        <ScrollViewer Grid.Row="1" Margin="0,14,0,0"
-                                                      VerticalScrollBarVisibility="Auto">
-                                            <ItemsControl ItemsSource="{Binding Rounds}">
+                                        <ScrollViewer Grid.Row="1" Margin="0,12,0,0"
+                                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl ItemsSource="{Binding Rounds}" Margin="0,0,0,8">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Background="{StaticResource InkBrush}"
                                                                 BorderBrush="{StaticResource LineBrush}"
-                                                                BorderThickness="1" CornerRadius="9"
+                                                                BorderThickness="1" CornerRadius="8"
                                                                 Padding="12" Margin="0,0,0,8">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="56" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="12" />
                                                                     <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="75" />
-                                                                    <ColumnDefinition Width="75" />
-                                                                    <ColumnDefinition Width="62" />
-                                                                    <ColumnDefinition Width="62" />
                                                                 </Grid.ColumnDefinitions>
-                                                                <TextBlock Text="{Binding Number}"
-                                                                           FontFamily="{StaticResource MonoFont}"
-                                                                           FontSize="11" Foreground="{Binding Accent}"
-                                                                           VerticalAlignment="Center" />
-                                                                <StackPanel Grid.Column="1">
-                                                                    <TextBlock Text="{Binding Candidate}" FontSize="12"
-                                                                               FontWeight="SemiBold"
-                                                                               TextTrimming="CharacterEllipsis" />
-                                                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                                        <TextBlock Text="{Binding Verdict}" FontSize="10"
-                                                                                   Foreground="{Binding Accent}" />
-                                                                        <TextBlock Text=" · " FontSize="10"
-                                                                                   Foreground="{StaticResource MutedBrush}" />
-                                                                        <TextBlock Text="{Binding Precision}" FontSize="10"
-                                                                                   Foreground="{StaticResource MutedBrush}" />
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto" />
+                                                                    <RowDefinition Height="8" />
+                                                                    <RowDefinition Height="Auto" />
+                                                                    <RowDefinition Height="8" />
+                                                                    <RowDefinition Height="Auto" />
+                                                                </Grid.RowDefinitions>
+                                                                <TextBlock Text="{Binding Number}" FontFamily="{StaticResource MonoFont}"
+                                                                           FontSize="{StaticResource FontSize12}" Foreground="{Binding Accent}" />
+                                                                <StackPanel Grid.Column="2">
+                                                                    <TextBlock Text="{Binding Candidate}" FontSize="{StaticResource FontSize13}"
+                                                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Candidate}" />
+                                                                    <WrapPanel Margin="0,4,0,0">
+                                                                        <TextBlock Text="{Binding Verdict}" FontSize="{StaticResource FontSize12}" Foreground="{Binding Accent}" />
+                                                                        <TextBlock Text=" · " FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
+                                                                        <TextBlock Text="{Binding Precision}" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}" />
+                                                                    </WrapPanel>
+                                                                </StackPanel>
+                                                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Explanation}" FontSize="{StaticResource FontSize12}"
+                                                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                                                <UniformGrid Grid.Row="4" Grid.ColumnSpan="3" Columns="4">
+                                                                    <StackPanel Margin="0,0,8,0">
+                                                                        <TextBlock Text="AVG" Style="{StaticResource MetricLabel}" />
+                                                                        <TextBlock Text="{Binding AverageFps}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize16}"
+                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding AverageFps}" />
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding Explanation}" FontSize="10"
-                                                                               Foreground="{StaticResource MutedBrush}"
-                                                                               TextWrapping="Wrap" Margin="0,5,8,0" />
-                                                                </StackPanel>
-                                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                                    <TextBlock Text="AVG" Style="{StaticResource MetricLabel}" />
-                                                                    <TextBlock Text="{Binding AverageFps}" FontFamily="{StaticResource MonoFont}" FontSize="14" />
-                                                                </StackPanel>
-                                                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                                                    <TextBlock Text="1% LOW" Style="{StaticResource MetricLabel}" />
-                                                                    <TextBlock Text="{Binding LowFps}" FontFamily="{StaticResource MonoFont}" FontSize="14" />
-                                                                </StackPanel>
-                                                                <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                                                                    <TextBlock Text="GPU" Style="{StaticResource MetricLabel}" />
-                                                                    <TextBlock Text="{Binding Gpu}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
-                                                                </StackPanel>
-                                                                <StackPanel Grid.Column="5" VerticalAlignment="Center">
-                                                                    <TextBlock Text="SCORE" Style="{StaticResource MetricLabel}" />
-                                                                    <TextBlock Text="{Binding Score}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
-                                                                </StackPanel>
+                                                                    <StackPanel Margin="0,0,8,0">
+                                                                        <TextBlock Text="1% LOW" Style="{StaticResource MetricLabel}" />
+                                                                        <TextBlock Text="{Binding LowFps}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize16}"
+                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding LowFps}" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Margin="0,0,8,0">
+                                                                        <TextBlock Text="GPU" Style="{StaticResource MetricLabel}" />
+                                                                        <TextBlock Text="{Binding Gpu}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize16}"
+                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Gpu}" />
+                                                                    </StackPanel>
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="SCORE" Style="{StaticResource MetricLabel}" />
+                                                                        <TextBlock Text="{Binding Score}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize16}"
+                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Score}" />
+                                                                    </StackPanel>
+                                                                </UniformGrid>
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
+                                        <Border Grid.Row="1" Height="24" VerticalAlignment="Bottom"
+                                                Background="{StaticResource PanelBrush}"
+                                                IsHitTestVisible="False">
+                                            <Border.OpacityMask>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="Transparent" Offset="0" />
+                                                    <GradientStop Color="{StaticResource PanelColor}" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.OpacityMask>
+                                        </Border>
                                     </Grid>
                                 </Border>
 
-                                <Grid Grid.Row="3" Margin="0,14,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="#221B12" BorderBrush="#5B3A1C" BorderThickness="1"
-                                            CornerRadius="9" Padding="12,9"
+                                <StackPanel Grid.Row="3" Margin="0,16,0,0">
+                                    <Border Background="{StaticResource WarningBrush}" BorderBrush="{StaticResource WarningLineBrush}" BorderThickness="1"
+                                            CornerRadius="8" Padding="12,8"
                                             Visibility="{Binding IsPrecisionWarning, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="本轮帧数据精度不足，结论可能不稳定。请确认采样正常开始。"
-                                                   FontSize="11" Foreground="{StaticResource OrangeBrush}" />
+                                                   TextWrapping="Wrap" FontSize="{StaticResource FontSize12}" Foreground="{StaticResource OrangeBrush}" />
                                     </Border>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
-                                        <Button Content="恢复原始设置" Command="{Binding RestoreCommand}"
-                                                Style="{StaticResource DangerButton}" />
-                                        <Button Content="应用个性化建议" Command="{Binding ApplyBestCommand}"
-                                                Style="{StaticResource GhostButton}" Margin="8,0,0,0" />
-                                        <Button Content="跳过 / 保留当前" Command="{Binding SkipCommand}"
-                                                Style="{StaticResource GhostButton}" Margin="8,0,0,0" />
-                                    </StackPanel>
-                                </Grid>
+                                    <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0">
+                                        <Button Command="{Binding RestoreCommand}" Style="{StaticResource DangerButton}" Margin="0,0,8,0">
+                                            <TextBlock Text="恢复原始设置" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="128"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </Button>
+                                        <Button Command="{Binding ApplyBestCommand}" Style="{StaticResource GhostButton}" Margin="0,0,8,0">
+                                            <TextBlock Text="应用个性化建议" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="128"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </Button>
+                                        <Button Command="{Binding SkipCommand}" Style="{StaticResource GhostButton}" Margin="0">
+                                            <TextBlock Text="跳过 / 保留当前" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="128"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </Button>
+                                    </WrapPanel>
+                                </StackPanel>
                             </Grid>
                         </TabItem>
 
                         <TabItem Header="系统与 AI">
-                            <ScrollViewer Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="14" />
+                                        <RowDefinition Height="16" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Border Style="{StaticResource PanelBorder}">
                                         <StackPanel>
                                             <TextBlock Text="SYSTEM READINESS" Style="{StaticResource EyebrowText}" />
                                             <TextBlock Text="调优链路" FontFamily="{StaticResource DisplayFont}"
-                                                       FontSize="20" Margin="0,6,0,15" />
+                                                       FontSize="{StaticResource FontSize20}" Margin="0,4,0,16" />
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <Border Background="{StaticResource InkBrush}" CornerRadius="9"
+                                                <Border Background="{StaticResource InkBrush}" CornerRadius="8"
                                                         Padding="12" Margin="0,0,8,0">
                                                     <StackPanel>
                                                         <TextBlock Text="NVIDIA" Style="{StaticResource MetricLabel}" />
-                                                        <TextBlock Text="{Binding NvidiaStatus}" FontSize="12" Margin="0,7,0,0" />
+                                                        <TextBlock Text="{Binding NvidiaStatus}" FontSize="{StaticResource FontSize12}" Margin="0,8,0,0" />
                                                     </StackPanel>
                                                 </Border>
                                                 <Border Grid.Column="1" Background="{StaticResource InkBrush}"
-                                                        CornerRadius="9" Padding="12" Margin="0,0,8,0">
+                                                        CornerRadius="8" Padding="12" Margin="0,0,8,0">
                                                     <StackPanel>
                                                         <TextBlock Text="NVIDIA LOG" Style="{StaticResource MetricLabel}" />
-                                                        <TextBlock Text="{Binding DataSourceStatus}" FontSize="12" Margin="0,7,0,0" />
+                                                        <TextBlock Text="{Binding DataSourceStatus}" FontSize="{StaticResource FontSize12}" Margin="0,8,0,0" />
                                                     </StackPanel>
                                                 </Border>
                                                 <Border Grid.Column="2" Background="{StaticResource InkBrush}"
-                                                        CornerRadius="9" Padding="12">
+                                                        CornerRadius="8" Padding="12">
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding ConfigStatus}" Style="{StaticResource MetricLabel}" />
-                                                        <TextBlock Text="{Binding ConfigScopeStatus}" FontSize="10"
-                                                                   TextWrapping="Wrap" Margin="0,7,0,0" />
+                                                        <TextBlock Text="{Binding ConfigScopeStatus}" FontSize="{StaticResource FontSize12}"
+                                                                   TextWrapping="Wrap" Margin="0,8,0,0" />
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
                                             <TextBlock Text="{Binding ConfigPath}"
-                                                       FontFamily="{StaticResource MonoFont}" FontSize="10"
-                                                       Foreground="{StaticResource MutedBrush}" Margin="2,12,0,0"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize12}"
+                                                       Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0"
                                                        TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding RawConfigHash}"
-                                                       FontFamily="{StaticResource MonoFont}" FontSize="10"
-                                                       Foreground="{StaticResource OrangeBrush}" Margin="2,5,0,0" />
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize12}"
+                                                       Foreground="{StaticResource OrangeBrush}" Margin="0,4,0,0" />
                                             <TextBlock Text="{Binding DataDirectory}"
-                                                       FontFamily="{StaticResource MonoFont}" FontSize="10"
-                                                       Foreground="{StaticResource MutedBrush}" Margin="2,5,0,0"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSize12}"
+                                                       Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"
                                                        TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding DataDirectoryStatus}"
-                                                       FontSize="10"
+                                                       FontSize="{StaticResource FontSize12}"
                                                        Foreground="{StaticResource MutedBrush}"
-                                                       Margin="2,3,0,0" />
+                                                       Margin="0,4,0,0" />
                                             <TextBlock Text="{Binding DataSourceDetail}"
-                                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                                       LineHeight="16" TextWrapping="Wrap" Margin="2,10,0,0" />
+                                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
+                                                       LineHeight="20" TextWrapping="Wrap" Margin="0,8,0,0" />
                                         </StackPanel>
                                     </Border>
 
@@ -454,9 +490,9 @@
                                             <TextBlock Text="OPTIONAL AI REVIEW" Style="{StaticResource EyebrowText}" />
                                             <TextBlock Text="云端只做解释与候选评审"
                                                        FontFamily="{StaticResource DisplayFont}"
-                                                       FontSize="20" Margin="0,6,0,5" />
+                                                       FontSize="{StaticResource FontSize20}" Margin="0,4,0,4" />
                                             <TextBlock Text="留空模型名称时完全离线运行。密钥保存到 Windows 凭据管理器，不写入配置文件。"
-                                                       Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                       Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}"
                                                        Margin="0,0,0,16" />
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -466,16 +502,16 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel>
                                                     <TextBlock Text="API ENDPOINT" Style="{StaticResource MetricLabel}"
-                                                               Margin="0,0,0,7" />
+                                                               Margin="0,0,0,8" />
                                                     <TextBox Text="{Binding AiEndpoint, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="MODEL" Style="{StaticResource MetricLabel}"
-                                                               Margin="0,0,0,7" />
+                                                               Margin="0,0,0,8" />
                                                     <TextBox Text="{Binding AiModel, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                             </Grid>
-                                            <Grid Margin="0,14,0,0">
+                                            <Grid Margin="0,12,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="12" />
@@ -483,19 +519,19 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel>
                                                     <TextBlock Text="接口协议（chat / responses）" Style="{StaticResource MetricLabel}"
-                                                               Margin="0,0,0,7" />
+                                                               Margin="0,0,0,8" />
                                                     <TextBox Text="{Binding AiWireApi, UpdateSourceTrigger=PropertyChanged}"
                                                              ToolTip="chat 使用 Chat Completions API；responses 使用 Responses API" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="客户端标识（User-Agent，可留空）" Style="{StaticResource MetricLabel}"
-                                                               Margin="0,0,0,7" />
+                                                               Margin="0,0,0,8" />
                                                     <TextBox Text="{Binding AiUserAgent, UpdateSourceTrigger=PropertyChanged}"
                                                              ToolTip="留空不覆盖 User-Agent；AgentRouter 需要受支持的编程客户端标识" />
                                                 </StackPanel>
                                             </Grid>
                                             <TextBlock Text="API KEY" Style="{StaticResource MetricLabel}"
-                                                       Margin="0,14,0,7" />
+                                                       Margin="0,12,0,8" />
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -506,12 +542,12 @@
                                                 <Button Grid.Column="1" Content="保存 AI 设置"
                                                         Command="{Binding SaveAiCommand}"
                                                         Style="{StaticResource GhostButton}"
-                                                        Margin="10,0,0,0" />
+                                                        Margin="8,0,0,0" />
                                             </Grid>
-                                            <TextBlock Text="{Binding SaveAiStatus}" FontSize="10"
+                                            <TextBlock Text="{Binding SaveAiStatus}" FontSize="{StaticResource FontSize12}"
                                                        Foreground="{StaticResource LimeBrush}"
-                                                       Margin="2,9,0,0" />
-                                            <TextBlock Text="NVIDIA 日志目录（默认 AppData\Local\nvlog）" Style="{StaticResource MetricLabel}" Margin="0,15,0,7" />
+                                                       Margin="0,8,0,0" />
+                                            <TextBlock Text="NVIDIA 日志目录（默认 AppData\Local\nvlog）" Style="{StaticResource MetricLabel}" Margin="0,16,0,8" />
                                             <TextBox Text="{Binding TelemetryLogDirectory, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </Border>
@@ -520,75 +556,52 @@
                         </TabItem>
                     </TabControl>
 
-                    <Border Grid.Column="2" Style="{StaticResource PanelBorder}">
-                        <StackPanel>
-                            <TextBlock Text="METHOD" Style="{StaticResource EyebrowText}" />
-                            <TextBlock Text="三轮，不是玄学" FontFamily="{StaticResource DisplayFont}"
-                                       FontSize="22" Margin="0,7,0,18" />
-
-                            <Grid Margin="0,0,0,18">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="26" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource LimeBrush}">
-                                    <TextBlock Text="1" Foreground="#11150F" FontFamily="{StaticResource MonoFont}"
-                                               FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Margin="10,-1,0,0">
-                                    <TextBlock Text="建立基线" FontWeight="SemiBold" FontSize="12" />
-                                    <TextBlock Text="保留当前设置，采集真实运行数据，不套官方预设。"
-                                               Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                               TextWrapping="Wrap" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid Margin="0,0,0,18">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="26" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="22" Height="22" CornerRadius="11"
-                                        BorderBrush="{StaticResource OrangeBrush}" BorderThickness="1">
-                                    <TextBlock Text="2" Foreground="{StaticResource OrangeBrush}"
-                                               FontFamily="{StaticResource MonoFont}" FontWeight="Bold"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Margin="10,-1,0,0">
-                                    <TextBlock Text="相邻搜索" FontWeight="SemiBold" FontSize="12" />
-                                    <TextBlock Text="优先使用 NVIDIA 能力，再按瓶颈微调图形设置。"
-                                               Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                               TextWrapping="Wrap" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid Margin="0,0,0,22">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="26" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="22" Height="22" CornerRadius="11"
-                                        BorderBrush="{StaticResource MutedBrush}" BorderThickness="1">
-                                    <TextBlock Text="3" Foreground="{StaticResource MutedBrush}"
-                                               FontFamily="{StaticResource MonoFont}" FontWeight="Bold"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Margin="10,-1,0,0">
-                                    <TextBlock Text="复测与收敛" FontWeight="SemiBold" FontSize="12" />
-                                    <TextBlock Text="复测并比较；最终应用自动备份、可随时回滚。"
-                                               Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                               TextWrapping="Wrap" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,0,0,16" />
-                            <TextBlock Text="SAFE BY DEFAULT" Style="{StaticResource EyebrowText}" />
-                            <TextBlock Text="不注入进程 · 不改存档 · 自动备份 · 可随时回滚"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="10"
-                                       LineHeight="17" TextWrapping="Wrap" Margin="0,8,0,0" />
-                        </StackPanel>
-                    </Border>
                 </Grid>
+                <Border Grid.Row="4" Style="{StaticResource PanelBorder}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="三轮，不是玄学" FontFamily="{StaticResource DisplayFont}"
+                                       FontSize="{StaticResource FontSize16}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="不注入进程 · 不改存档 · 自动备份 · 可随时回滚"
+                                       FontSize="{StaticResource FontSize12}" Foreground="{StaticResource MutedBrush}"
+                                       TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0"
+                                       TextTrimming="CharacterEllipsis" ToolTip="不注入进程 · 不改存档 · 自动备份 · 可随时回滚" />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="01  建立基线" Foreground="{StaticResource LimeBrush}"
+                                           FontWeight="SemiBold" FontSize="{StaticResource FontSize13}" />
+                                <TextBlock Text="保留设置，采集真实数据。" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}" Margin="0,4,0,0"
+                                           ToolTip="保留当前设置，采集真实运行数据，不套官方预设。" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="02  相邻搜索" Foreground="{StaticResource OrangeBrush}"
+                                           FontWeight="SemiBold" FontSize="{StaticResource FontSize13}" />
+                                <TextBlock Text="优先 NVIDIA，再按瓶颈微调。" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}" Margin="0,4,0,0"
+                                           ToolTip="优先使用 NVIDIA 能力，再按瓶颈微调图形设置。" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="03  复测与收敛" FontWeight="SemiBold" FontSize="{StaticResource FontSize13}" />
+                                <TextBlock Text="比较结果，备份后应用。" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="{StaticResource FontSize12}" Margin="0,4,0,0"
+                                           ToolTip="复测并比较；最终应用自动备份、可随时回滚。" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Grid>
     </Grid>

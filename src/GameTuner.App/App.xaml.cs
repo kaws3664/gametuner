@@ -11,6 +11,7 @@ using GameTuner.Core.Models;
 using GameTuner.Core.Optimization;
 using GameTuner.Core.Profiles;
 using GameTuner.Core.Telemetry;
+using iNKORE.UI.WPF.Modern;
 
 namespace GameTuner.App;
 
@@ -27,6 +28,9 @@ public partial class App : System.Windows.Application
         AppLog.Write("OnStartup begin");
         try
         {
+            ThemeManager.Current.ApplicationTheme = ApplicationTheme.Dark;
+            ThemeManager.Current.AccentColor = (System.Windows.Media.Color)Resources["LimeColor"];
+
             var paths = new AppPaths();
             paths.EnsureCreated();
             AppLog.Write("Paths ready");

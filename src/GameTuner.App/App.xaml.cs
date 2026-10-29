@@ -84,6 +84,33 @@ public partial class App : System.Windows.Application
 
             window.Show();
             AppLog.Write("MainWindow shown");
+
+            // --capture-ui <path>: offscreen render the main window to a PNG and exit.
+            // Used by tools/capture-ui.ps1 for automated UI verification (works without an interactive desktop).
+            if (e.Args.Length == 2 && e.Args[0] == "--capture-ui")
+            {
+                await viewModel.InitializeAsync();
+                await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                var width = (int)Math.Ceiling(window.ActualWidth);
+                var height = (int)Math.Ceiling(window.ActualHeight);
+                if (width < 1 || height < 1) { width = 1180; height = 790; }
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(window);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(e.Args[1]))!);
+                using (var stream = System.IO.File.Create(e.Args[1]))
+                {
+                    encoder.Save(stream);
+                }
+                AppLog.Write("UI captured: " + e.Args[1]);
+                _exiting = true;
+                Shutdown(0);
+                return;
+            }
+
             await viewModel.InitializeAsync();
             AppLog.Write("ViewModel initialized");
         }

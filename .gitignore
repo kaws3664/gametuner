@@ -1,0 +1,9 @@
+bin/
+obj/
+.vs/
+.tmp-*/
+artifacts/
+*.user
+*.suo
+debug.log
+/gametuner/

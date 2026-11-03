@@ -12,13 +12,13 @@ public sealed class MainViewModel : ViewModelBase
     private readonly JsonFileStore _files;
     private readonly string _savePath;
     public string PlansDirectory { get; }
-    private AnalysisSession _session = new() { Game = "我的游戏" };
-    private string _game = "我的游戏", _logPath = "", _logDirectory;
+    private AnalysisSession _session = new() { Game = "" };
+    private string _game = "", _logPath = "", _logDirectory;
     private double _targetFps = 60;
     private TuningMode _mode = TuningMode.Balanced;
     private ManualQualityTier _tier = ManualQualityTier.Unknown;
     private string _graphicsSettings = "", _resolution = "", _cpu = "", _gpu = "", _memory = "", _scene = "";
-    private string _status = "先设定目标，填写本次画质，再导入第一份日志。";
+    private string _status = "先设定目标；支持的画质与硬件会自动读取，再导入第一份日志。";
     private string _saveStatus = "";
     private bool _isBusy, _isShareVisible;
     private AnalysisRoundViewModel? _selectedRound;
@@ -86,7 +86,7 @@ public sealed class MainViewModel : ViewModelBase
     public string ShareTitle => SelectedRound?.MeetsTarget == true ? "我的达标画质" : "我的画质实测";
     public string ShareVerdict => SelectedRound?.Verdict ?? "等待日志";
     public string ShareTier => SelectedRound?.Tier ?? "未填写";
-    public string ShareSettings => SelectedRound?.Settings ?? "导入日志后，这里展示玩家填写的画面设置。";
+    public string ShareSettings => SelectedRound?.Settings ?? "导入日志后，这里展示本机读取或玩家补充的画面设置。";
     public string ShareResolution => AnalysisRoundViewModel.Empty(SelectedRound?.Round.Configuration.Resolution ?? "");
     public string ShareCpu => AnalysisRoundViewModel.Empty(SelectedRound?.Round.Configuration.Cpu ?? "");
     public string ShareGpu => AnalysisRoundViewModel.Empty(SelectedRound?.Round.Configuration.Gpu ?? "");
@@ -145,7 +145,8 @@ public sealed class MainViewModel : ViewModelBase
         var goal = new TuningGoal { TargetFps = TargetFps, Mode = Mode };
         try
         {
-            var report = await _analysis.AnalyzeAsync(LogPath, goal, configuration.Tier);
+            var report = await _analysis.AnalyzeAsync(LogPath, goal, configuration.Tier,
+                graphicsSettings: configuration.GraphicsSettings);
             if (_session.Rounds.Any(round => round.Report.SourceHash.Length > 0 && round.Report.SourceHash == report.SourceHash))
                 throw new InvalidOperationException("这份日志内容已导入，不重复算一轮。请录制新的游玩片段再比较。");
             if (_session.Rounds.Count == 0) _session = new AnalysisSession { Game = game, Goal = goal };
@@ -154,13 +155,13 @@ public sealed class MainViewModel : ViewModelBase
             RebuildRounds(round.Number);
             Status = round.MeetsTarget(goal)
                 ? "已达到目标！可以停在本次配置并保存分享图，不需要继续测。这是已测达标方案，不是全局最优证明。"
-                : "分析完成。参考建议手动调整，填写下一次实际设置，再导入新日志比较。";
+                : "分析完成。参考建议在游戏里手动调整，点击重新获取后再导入新日志比较。";
         }
         catch (Exception exception) { Status = "没有新增记录：" + exception.Message; }
         finally { IsBusy = false; }
     }
 
-    private async Task LoadLatestAsync()
+    public async Task LoadLatestAsync()
     {
         try
         {
@@ -190,12 +191,14 @@ public sealed class MainViewModel : ViewModelBase
         finally { IsBusy = false; }
     }
 
-    private Task UpdateDetailsAsync()
+    public Task UpdateDetailsAsync()
     {
         if (SelectedRound is null) return Task.CompletedTask;
         var previous = SelectedRound.Round;
         var configuration = CaptureConfiguration();
-        var recommendation = ManualRecommendationPlanner.Recommend(previous.Report.Metrics, _session.Goal, configuration.Tier);
+        var recommendation = ManualRecommendationPlanner.Recommend(
+            previous.Report.Metrics, _session.Goal, configuration.Tier,
+            configuration.GraphicsSettings);
         var updated = previous with { Configuration = configuration, Report = previous.Report with { Recommendation = recommendation } };
         _session.Rounds[_session.Rounds.FindIndex(round => round.Number == previous.Number)] = updated;
         RebuildRounds(updated.Number);

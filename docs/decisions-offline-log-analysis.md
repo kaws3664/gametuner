@@ -4,14 +4,15 @@ Decision date: 2026-10-28.
 
 ## Decision
 
-The user selected an offline Windows desktop application with player-controlled
-graphics adjustments. Reuse the existing WPF application, local C# analysis,
-JSON records and native PNG rendering. No accounts, cloud, API keys, database,
-server or NVIDIA MCP connection are needed.
+The active product is an offline native WPF Windows application with
+player-controlled graphics adjustments. Reuse local C# analysis, JSON records and
+native PNG rendering without an HTTP server or browser. No accounts, cloud,
+external API keys, database or NVIDIA MCP connection are needed.
 
-Alternatives considered: a local browser UI adds a server/packaging layer; a new
-desktop framework adds migration work without improving the read-only workflow.
-Reuse is the simplest maintainable choice.
+The player explicitly selects a running process for read-only configuration and
+PresentMon capture. Native dialogs import external logs and scalar JSON/XML/INI
+settings; each capture is explicitly started and stopped for analysis. WPF also
+provides the main window, process picker, keyboard commands and share-card preview.
 
 ## Product Contract
 
@@ -23,7 +24,8 @@ Reuse is the simplest maintainable choice.
   a game's menu labels, current settings, hardware or exact performance gains.
 - The player sets a target, imports independent logs, changes settings manually
   and imports subsequent logs. There is no fixed round count.
-- Record the actual player-entered graphics and hardware details with each log.
+- Read hardware and supported game settings locally, or accept explicit player
+  details for unsupported games, and snapshot the actual values with each log.
   Later edits must not silently relabel an older measurement.
 - Average FPS and a usable low-FPS measurement must meet the target before
   declaring success. A P99-equivalent summary is not precise 1% Low.
@@ -31,17 +33,21 @@ Reuse is the simplest maintainable choice.
   Do not call it the global optimum. Start a new comparison to change the goal.
 - Save an immutable local plan record and a locally generated PNG share card.
   Saving never writes the game's configuration.
-- Use directly visible buttons for common game, tier, FPS, round and export
-  actions, rather than dropdown lists.
+- Use directly visible native controls for common game, FPS, round and export
+  actions; keep the quality-tier choice in the existing native selector.
 
 ## Safety And Validation
 
 The active application composition root must not construct game controllers,
-configuration adapters, process guards, MCP clients or cloud advisors. Legacy
+write-capable configuration adapters, process guards, MCP clients or cloud advisors. Legacy
 automation code remains only as an inactive reference, not part of the UI flow.
+The desktop configuration providers may use read-only Windows, registry and
+game-file inspection to populate actual settings; they must not launch games or
+modify those sources. Player-selected structured settings imports are also read-only.
 
-Test the actual parser, real log files, WPF controls, JSON round trips and PNG
-exports. Preserve existing user data. Share cards contain explicitly entered
+Test the actual parser, real log files, native coordinator, real WPF modal and
+keyboard controls, JSON round trips and PNG exports. Verify fresh self-contained
+packages retain bundled PresentMon and contain no browser assets. Preserve existing user data. Share cards contain explicitly entered
 hardware/settings and measurements, not private source paths or API keys.
 
 ## Compatibility Limits

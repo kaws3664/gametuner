@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace GameTuner.App.ViewModels;
 
@@ -7,6 +8,7 @@ public sealed class AsyncRelayCommand(
     Func<bool>? canExecute = null) : ICommand
 {
     private bool _isExecuting;
+    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
 
     public event EventHandler? CanExecuteChanged;
 
@@ -33,6 +35,11 @@ public sealed class AsyncRelayCommand(
         }
     }
 
-    public void RaiseCanExecuteChanged() =>
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void RaiseCanExecuteChanged()
+    {
+        var handlers = CanExecuteChanged;
+        if (handlers is null) return;
+        if (_dispatcher.CheckAccess()) handlers(this, EventArgs.Empty);
+        else _dispatcher.Invoke(() => handlers(this, EventArgs.Empty));
+    }
 }

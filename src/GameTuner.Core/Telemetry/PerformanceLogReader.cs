@@ -171,7 +171,7 @@ public static class PerformanceLogReader
         return -1;
     }
 
-    internal static List<string> SplitCsv(string row)
+    public static List<string> SplitCsv(string row)
     {
         var values = new List<string>();
         var current = new System.Text.StringBuilder();

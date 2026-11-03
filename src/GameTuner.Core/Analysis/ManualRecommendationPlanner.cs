@@ -5,7 +5,7 @@ namespace GameTuner.Core.Analysis;
 public static class ManualRecommendationPlanner
 {
     public static ManualRecommendation Recommend(
-        PerformanceMetrics metrics, TuningGoal goal, ManualQualityTier currentTier)
+        PerformanceMetrics metrics, TuningGoal goal, ManualQualityTier currentTier, string graphicsSettings = "")
     {
         goal.Validate();
         var meetsAverage = metrics.AverageFps >= goal.TargetFps;
@@ -35,6 +35,13 @@ public static class ManualRecommendationPlanner
                 null,
                 [new("体积雾 / 体积效果", "如高于最低档，先降低 1 档再复测", "缺少硬件利用率时只做保守试验；游戏没有该项可跳过。"),
                  new("当前画质档位", "按录制日志时的实际设置填写", "档位由玩家提供，不从文件名、帧率或注册表猜测。")]);
+
+        if (metrics.Bottleneck == BottleneckKind.Gpu && RayTracingEnabled(graphicsSettings))
+            return new("优先试关闭光线追踪",
+                evidence + "当前配置明确显示光线追踪已开启；先只关闭这一项并复测，避免同时牺牲其他画质。",
+                null,
+                [new("光线追踪", "从开启改为关闭", "依据是 GPU 利用率和本机实际配置，不是凭空猜测。"),
+                 new("纹理 / 分辨率", "暂时保持", "先验证关闭光追带来的变化，再决定是否需要其他调整。")]);
 
         if (meetsAverage && !meetsLow)
             return new("平均帧率已够，先改善低帧",
@@ -77,6 +84,11 @@ public static class ManualRecommendationPlanner
         ManualQualityTier.Ultra => "极高档",
         _ => "未知 / 自定义"
     };
+
+    private static bool RayTracingEnabled(string graphicsSettings) =>
+        System.Text.RegularExpressions.Regex.IsMatch(graphicsSettings,
+            @"(?:光线追踪|光追|ray\s*tracing)\s*[:：]?\s*(?:开启|启用|开|低|中|高|极高|on|true|enabled)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public static string DescribeBottleneck(PerformanceMetrics metrics) => metrics.Bottleneck switch
     {

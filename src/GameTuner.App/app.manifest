@@ -3,8 +3,11 @@
   <assemblyIdentity version="1.0.0.0" name="GameTuner.App" />
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
+      <!-- PresentMon starts an ETW trace session, which Windows refuses without
+           administrative rights (or membership of "Performance Log Users").
+           Without elevation the capture silently produces no log at all. -->
       <requestedPrivileges>
-        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

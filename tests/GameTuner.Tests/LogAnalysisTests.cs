@@ -127,6 +127,66 @@ public sealed class LogAnalysisTests : IDisposable
     }
 
     [Fact]
+    public async Task Frame_log_rounds_slowest_one_percent_up_for_partial_hundreds()
+    {
+        var frames = Enumerable.Repeat(10d, 197).Append(50d).Append(100d);
+        var report = await _service.AnalyzeAsync(
+            Write("partial-hundred.csv", "FrameTime\n" + string.Join('\n', frames)),
+            new TuningGoal(), ManualQualityTier.High);
+        Assert.Equal(199, report.SampleCount);
+        Assert.Equal(1000 / 75d, report.Metrics.LowFps, 5);
+    }
+
+    [Fact]
+    public async Task Frame_log_low_uses_at_least_one_slow_frame()
+    {
+        var frames = Enumerable.Repeat(10d, 98).Append(50d);
+        var report = await _service.AnalyzeAsync(
+            Write("one-percent-minimum.csv", "FrameTime\n" + string.Join('\n', frames)),
+            new TuningGoal(), ManualQualityTier.High);
+        Assert.Equal(99, report.SampleCount);
+        Assert.Equal(20, report.Metrics.LowFps);
+    }
+
+    [Fact]
+    public async Task Frame_log_keeps_real_stalls_longer_than_ten_seconds()
+    {
+        var frames = Enumerable.Repeat(10d, 99).Append(15000d);
+        var report = await _service.AnalyzeAsync(
+            Write("long-stall.csv", "FrameTime\n" + string.Join('\n', frames)),
+            new TuningGoal(), ManualQualityTier.High);
+        Assert.Equal(1000 / frames.Average(), report.Metrics.AverageFps, 5);
+        Assert.Equal(1000 / 15000d, report.Metrics.LowFps, 5);
+    }
+
+    [Fact]
+    public async Task GameTuner_frame_capture_uses_its_cpu_gpu_and_vram_samples()
+    {
+        var path = Write("gametuner-capture.csv", "ProcessID,MsBetweenPresents,CPU Utilization(%),GPU Utilization(%),GPU Memory Used(MB),GPU Memory Total(MB)\n"
+            + string.Join('\n', Enumerable.Range(0, 100).Select(index => $"77,25,60,97,7800,8192")));
+        var report = await _service.AnalyzeAsync(path, new TuningGoal(), ManualQualityTier.High);
+        Assert.Equal(40, report.Metrics.AverageFps);
+        Assert.Equal(60, report.Metrics.CpuUtilization);
+        Assert.Equal(97, report.Metrics.GpuUtilization);
+        Assert.Equal(7800, report.Metrics.GpuMemoryUsedMb);
+        Assert.Equal(8192, report.Metrics.GpuMemoryTotalMb);
+        Assert.Equal(BottleneckKind.Vram, report.Metrics.Bottleneck);
+    }
+
+    [Theory]
+    [InlineData("光线追踪：开启", true)]
+    [InlineData("Ray tracing: On", true)]
+    [InlineData("光追：关闭", false)]
+    [InlineData("Ray tracing: Off", false)]
+    public async Task Ray_tracing_advice_requires_gpu_bottleneck_and_actual_enabled_setting(string settings, bool recommendsClosing)
+    {
+        var report = await _service.AnalyzeAsync(Write("rt-advice.csv", Nvidia(40, 30)),
+            new TuningGoal(), ManualQualityTier.Unknown, graphicsSettings: settings);
+        Assert.Equal(recommendsClosing, report.Recommendation.Settings.Any(item =>
+            item.Setting == "光线追踪" && item.SuggestedValue.Contains("关闭")));
+    }
+
+    [Fact]
     public async Task Benchmark_p99_equivalent_does_not_claim_exact_low_or_stop_comparison()
     {
         var path = Write("Benchmark.txt", """

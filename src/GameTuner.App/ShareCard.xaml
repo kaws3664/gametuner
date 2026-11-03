@@ -18,7 +18,7 @@
         <StackPanel>
             <Grid Margin="0,0,0,26">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <TextBlock Text="FRAMESMITH / PLAYER NOTES" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#477363" />
+                <TextBlock Text="GAMETUNER / PLAYER NOTES" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#477363" />
                 <TextBlock Grid.Column="1" Text="{Binding ShareDate}" Style="{StaticResource CardLabel}" />
             </Grid>
             <Border Background="#173F35" CornerRadius="16" Padding="32,30" ClipToBounds="True">
@@ -86,7 +86,7 @@
                     <TextBlock Text="{Binding ShareDuration}" FontSize="12" Foreground="#64756D" Margin="0,5,0,0" />
                 </StackPanel>
             </Border>
-            <TextBlock Text="硬件与画面设置由玩家填写。日志仅代表该次录制片段；不同电脑、场景、游戏版本或驱动下的表现可能不同。"
+            <TextBlock Text="硬件与支持的配置由本机只读获取，其他信息可由玩家补充。日志仅代表该次录制片段；不同电脑、场景、游戏版本或驱动下的表现可能不同。"
                        Foreground="#64756D" FontSize="11" TextWrapping="Wrap" LineHeight="18" Margin="0,18,0,0" />
             <Grid Margin="0,22,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

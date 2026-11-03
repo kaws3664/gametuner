@@ -1,83 +1,132 @@
-using System.Globalization;
+using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using Microsoft.Win32;
+using GameTuner.App.Desktop;
+using GameTuner.App.Processes;
 using GameTuner.App.ViewModels;
+using GameTuner.Core.Infrastructure;
 
 namespace GameTuner.App;
 
 public partial class MainWindow : Window
 {
-    public MainWindow(MainViewModel viewModel)
+    private readonly DesktopSessionController _session;
+    private readonly INativeDialogService _dialogs;
+    private readonly string _themeSettings;
+    private bool _closed;
+
+    public MainWindow(DesktopSessionController session, INativeDialogService? dialogs = null, AppPaths? paths = null)
     {
+        _session = session;
+        Model = session.ViewModel;
+        _themeSettings = (paths ?? new AppPaths()).SettingsFile;
+        if (System.Windows.Application.Current is App app) app.ApplyTheme(_themeSettings);
+        _dialogs = dialogs ?? new NativeDialogService(this);
+        ThemeCommand = new DelegateCommand(ToggleTheme);
+        ProcessCommand = new DelegateCommand(() => { if (_dialogs.PickProcess() is { } selected) _session.SelectProcess(selected); });
+        ImportLogCommand = new NativeAsyncCommand(ImportLog, () => !_session.IsBusy, ReportError);
+        ImportSettingsCommand = new NativeAsyncCommand(ImportSettings, () => !_session.IsBusy, ReportError);
+        LoadCommand = new NativeAsyncCommand(Load, () => !_session.IsBusy, ReportError);
+        NewCommand = new DelegateCommand(New, () => !_session.IsBusy);
+        FillCommand = new DelegateCommand(Model.FillSelectedInputs);
+        PreviewCommand = new DelegateCommand(Preview, () => Model.SelectedRound is not null);
+        ExportCommand = new NativeAsyncCommand(Export, () => Model.SelectedRound is not null && !_session.IsBusy, ReportError);
+        StartCaptureCommand = new NativeAsyncCommand(() => _session.StartCaptureAsync(), () => !_session.IsBusy && Model.CanImport, ReportError);
+        StopAndAnalyzeCommand = new NativeAsyncCommand(() => _session.StopAndAnalyzeAsync(), () => !_session.IsBusy && Model.CanImport, ReportError);
+        DataContext = this;
         InitializeComponent();
-        DataContext = viewModel;
-    }
-
-    public void AllowClose() { }
-    private MainViewModel ViewModel => (MainViewModel)DataContext;
-
-    private void OnBrowseLog(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog
+        _session.PropertyChanged += (_, _) => RefreshCommands();
+        Model.PropertyChanged += (_, _) => RefreshCommands();
+        Closed += (_, _) =>
         {
-            Title = "选择本次游戏性能日志",
-            Filter = "性能日志 (*.csv;*.txt)|*.csv;*.txt|所有文件 (*.*)|*.*",
-            CheckFileExists = true,
-            Multiselect = false
+            if (_closed) return;
+            _closed = true;
+            _session.Dispose();
         };
-        if (dialog.ShowDialog(this) == true) ViewModel.LogPath = dialog.FileName;
     }
 
-    private void OnGameChoice(object sender, RoutedEventArgs e) => ViewModel.Game = (string)((Button)sender).Tag;
-    private void OnFpsChoice(object sender, RoutedEventArgs e) => ViewModel.TargetFps =
-        double.Parse((string)((Button)sender).Tag, CultureInfo.InvariantCulture);
-    private void OnRoundChoice(object sender, RoutedEventArgs e) => ViewModel.SelectedRound = (AnalysisRoundViewModel)((Button)sender).DataContext;
-    private void OnShowShare(object sender, RoutedEventArgs e) => ViewModel.IsShareVisible = true;
-    private void OnHideShare(object sender, RoutedEventArgs e) => ViewModel.IsShareVisible = false;
-    private void OnFillSelected(object sender, RoutedEventArgs e) => ViewModel.FillSelectedInputs();
-    private async void OnLoadPlan(object sender, RoutedEventArgs e)
+    public MainViewModel Model { get; }
+    public string ProcessStatus => _session.ProcessStatus;
+    public string CaptureStatus => _session.CaptureStatus;
+    public string ConfigurationStatus => _session.ConfigurationStatus;
+    public string ConfigurationSource => _session.ConfigurationSource;
+    public bool GraphicsReadOnly => _session.GraphicsReadOnly;
+    public string OperationStatus => _session.OperationStatus;
+    public DelegateCommand ThemeCommand { get; }
+    public DelegateCommand ProcessCommand { get; }
+    public NativeAsyncCommand ImportLogCommand { get; }
+    public NativeAsyncCommand ImportSettingsCommand { get; }
+    public NativeAsyncCommand LoadCommand { get; }
+    public DelegateCommand NewCommand { get; }
+    public DelegateCommand FillCommand { get; }
+    public DelegateCommand PreviewCommand { get; }
+    public NativeAsyncCommand ExportCommand { get; }
+    public NativeAsyncCommand StartCaptureCommand { get; }
+    public NativeAsyncCommand StopAndAnalyzeCommand { get; }
+
+    private void ToggleTheme()
     {
-        if (ViewModel.HasRounds && MessageBox.Show(this, "载入方案会替换当前未保存的对比记录。继续吗？",
-                "载入方案", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        var dialog = new OpenFileDialog
-        {
-            Title = "载入已保存的 FrameSmith 方案", Filter = "方案记录 (*.json)|*.json",
-            InitialDirectory = ViewModel.PlansDirectory, CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) == true) await ViewModel.LoadPlanAsync(dialog.FileName);
-    }
-    private void OnNewGoal(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel.HasRounds && MessageBox.Show(this, "开始新对比会清空当前未保存的记录。已保存的方案文件不受影响。继续吗？",
-                "新建目标", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        ViewModel.NewGoal();
-    }
-    private void OnExportShare(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SaveFileDialog
-        {
-            Title = "保存配置分享卡", Filter = "PNG 图片 (*.png)|*.png",
-            FileName = $"FrameSmith-{DateTime.Now:yyyyMMdd-HHmmss}.png", AddExtension = true, OverwritePrompt = true
-        };
-        if (dialog.ShowDialog(this) != true) return;
-        try
-        {
-            ShareCard.ExportPng(ViewModel, dialog.FileName);
-            ViewModel.ReportExport(dialog.FileName);
-        }
-        catch (Exception exception)
-        {
-            MessageBox.Show(this, "图片保存失败：" + exception.Message, "FrameSmith", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        if (System.Windows.Application.Current is not App app) throw new InvalidOperationException("主题服务尚未初始化。");
+        app.SetTheme(!app.IsDarkTheme);
+        Directory.CreateDirectory(Path.GetDirectoryName(_themeSettings)!);
+        File.WriteAllText(_themeSettings, app.IsDarkTheme ? "Dark" : "Light");
     }
 
-    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    private async Task ImportLog()
     {
-        if (MetricsGrid is not null)
-        {
-            MetricsGrid.Columns = ActualWidth < 1100 ? 2 : 4;
-        }
+        if (_dialogs.OpenLog() is { } path) await _session.ImportExternalLogAsync(path);
     }
 
+    private async Task ImportSettings()
+    {
+        if (_dialogs.OpenSettings() is { } path) await _session.ImportGraphicsSettingsAsync(path);
+    }
+
+    private async Task Load()
+    {
+        if (_dialogs.OpenPlan(Model.PlansDirectory) is { } path)
+            await _session.RunActionAsync(async () => { await Model.LoadPlanAsync(path); _session.OperationStatus = Model.Status; });
+    }
+
+    private void New()
+    {
+        if (Model.HasRounds && !_dialogs.ConfirmNewComparison()) return;
+        Model.NewGoal();
+        SharePreview.Visibility = Visibility.Collapsed;
+    }
+
+    private void Preview()
+    {
+        SharePreview.Visibility = SharePreview.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        SharePreview.GetBindingExpression(DataContextProperty)?.UpdateTarget();
+    }
+
+    private async Task Export()
+    {
+        if (_dialogs.SavePng() is not { } path) return;
+        await _session.RunActionAsync(() =>
+        {
+            try { ShareCard.ExportPng(Model, path); Model.ReportExport(path); }
+            catch (Exception exception) { _session.OperationStatus = "分享图导出失败：" + exception.Message; }
+            return Task.CompletedTask;
+        });
+    }
+
+    private void RefreshCommands()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(RefreshCommands);
+            return;
+        }
+        foreach (var command in new DelegateCommand[] { ProcessCommand, NewCommand, FillCommand, PreviewCommand }) command.RaiseCanExecuteChanged();
+        ImportLogCommand.RaiseCanExecuteChanged();
+        ImportSettingsCommand.RaiseCanExecuteChanged();
+        LoadCommand.RaiseCanExecuteChanged();
+        ExportCommand.RaiseCanExecuteChanged();
+        StartCaptureCommand.RaiseCanExecuteChanged();
+        StopAndAnalyzeCommand.RaiseCanExecuteChanged();
+    }
+
+    private void ReportError(Exception exception) =>
+        _session.OperationStatus = "操作未完成：" + exception.Message;
 }

@@ -46,16 +46,6 @@ public sealed class AppPaths
 
     private static string FindPresentMon()
     {
-        var candidates = new[]
-        {
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                "RivaTuner Statistics Server", "Plugins", "Client", "PresentMonDataProvider",
-                "PresentMon-2.3.1-x64.exe"),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "NVIDIA Corporation", "FrameViewSDK", "bin", "PresentMon_x64.exe")
-        };
-        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+        return Path.Combine(AppContext.BaseDirectory, "Tools", "PresentMon", "PresentMon.exe");
     }
 }

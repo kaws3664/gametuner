@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<TestSequence>
+  <Test Name="GameTuner.UiTests.DesktopWindowTests.Native_capture_and_external_import_commands_reach_the_real_session" DisplayName="GameTuner.UiTests.DesktopWindowTests.Native_capture_and_external_import_commands_reach_the_real_session" Source="C:\Users\Lycoris\Documents\ChatGPT\游戏优化\gametuner\tests\GameTuner.UiTests\bin\Debug\net9.0-windows\GameTuner.UiTests.dll" Completed="False" />
+</TestSequence>

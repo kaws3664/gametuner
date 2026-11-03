@@ -14,7 +14,7 @@ public sealed partial class LogAnalysisService
 
     public async Task<LogAnalysisReport> AnalyzeAsync(
         string path, TuningGoal goal, ManualQualityTier currentTier,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, string graphicsSettings = "")
     {
         goal.Validate();
         var source = Path.GetFullPath(path.Trim());
@@ -28,7 +28,7 @@ public sealed partial class LogAnalysisService
         var content = await reader.ReadToEndAsync(cancellationToken);
         if (content.Length == 0) throw new InvalidDataException("日志为空，不能生成优化建议。");
         cancellationToken.ThrowIfCancellationRequested();
-        return await Task.Run(() => AnalyzeContent(source, content, goal, currentTier), cancellationToken);
+        return await Task.Run(() => AnalyzeContent(source, content, goal, currentTier, graphicsSettings), cancellationToken);
     }
 
     public string? FindLatestLog(string directory)
@@ -42,7 +42,7 @@ public sealed partial class LogAnalysisService
             .Select(file => file.FullName).FirstOrDefault();
     }
 
-    private static LogAnalysisReport AnalyzeContent(string source, string content, TuningGoal goal, ManualQualityTier currentTier)
+    private static LogAnalysisReport AnalyzeContent(string source, string content, TuningGoal goal, ManualQualityTier currentTier, string graphicsSettings)
     {
         var warnings = new List<string>();
         PerformanceMetrics metrics;
@@ -94,9 +94,9 @@ public sealed partial class LogAnalysisService
         else if (metrics.Duration < TimeSpan.FromMinutes(3))
             warnings.Add($"片段只有 {metrics.Duration.TotalSeconds:0} 秒，少于 3 分钟，建议仅作为初步试调参考。");
         if (metrics.GpuMemoryTotalMb <= 0) warnings.Add("日志没有完整的显存容量信息，不能断言显存瓶颈。");
-        warnings.Add("游戏与当前画质由玩家确认；日志可能包含菜单、加载或不同进程，请确认录制片段。");
+        warnings.Add("请确认日志与当前配置属于同一游玩片段；菜单、加载和不同场景会影响比较。");
         return new(source, metrics, samples, precision, warnings,
-            ManualRecommendationPlanner.Recommend(metrics, goal, currentTier))
+            ManualRecommendationPlanner.Recommend(metrics, goal, currentTier, graphicsSettings))
         {
             SourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content)))
         };
@@ -180,16 +180,35 @@ public sealed partial class LogAnalysisService
         var frameIndex = headers.FindIndex(cell => names.Contains(cell, StringComparer.OrdinalIgnoreCase));
         var pidIndex = headers.FindIndex(cell => cell.Equals("PID", StringComparison.OrdinalIgnoreCase)
             || cell.Equals("ProcessID", StringComparison.OrdinalIgnoreCase));
+        int Column(params string[] names) => headers.FindIndex(header => names.Contains(header, StringComparer.OrdinalIgnoreCase));
+        var cpuIndex = Column("CPU Utilization(%)", "CPU Utilization (%)");
+        var gpuIndex = Column("GPU Utilization(%)", "GPU Utilization (%)", "GPU1 Utilization(%)");
+        var usedIndex = Column("GPU Memory Used(MB)", "GPU Memory Used (MB)", "GPU1 Memory Used(MB)");
+        var totalIndex = Column("GPU Memory Total(MB)", "GPU Memory Total (MB)", "GPU1 Memory Total(MB)");
         var pids = new HashSet<string>();
         var frames = new List<double>();
+        var cpu = new List<double>();
+        var gpu = new List<double>();
+        var memoryUsed = new List<double>();
+        var memoryTotal = new List<double>();
         foreach (var row in rows.Skip(headerIndex + 1))
         {
             var values = PerformanceLogReader.SplitCsv(row);
             if (values.Count <= frameIndex) continue;
             var frame = Number(values[frameIndex]);
-            if (!double.IsFinite(frame) || frame <= 0 || frame > 10000) continue;
+            if (!double.IsFinite(frame) || frame <= 0) continue;
             if (pidIndex >= 0 && values.Count > pidIndex && !string.IsNullOrWhiteSpace(values[pidIndex]))
                 pids.Add(values[pidIndex]);
+            void Collect(int column, List<double> target, double maximum)
+            {
+                if (column < 0 || column >= values.Count) return;
+                var value = Number(values[column]);
+                if (double.IsFinite(value) && value >= 0 && value <= maximum) target.Add(value);
+            }
+            Collect(cpuIndex, cpu, 100);
+            Collect(gpuIndex, gpu, 100);
+            Collect(usedIndex, memoryUsed, 1024 * 1024);
+            Collect(totalIndex, memoryTotal, 1024 * 1024);
             frames.Add(frame);
         }
         if (pids.Count > 1) throw new InvalidDataException("逐帧日志包含多个 PID，请分别导出单个游戏进程。");
@@ -202,6 +221,10 @@ public sealed partial class LogAnalysisService
             AverageFps = 1000 / frames.Average(),
             LowFps = 1000 / ordered.TakeLast(slowCount).Average(),
             FrameTimeP99Ms = p99,
+            CpuUtilization = cpu.Count == 0 ? 0 : cpu.Average(),
+            GpuUtilization = gpu.Count == 0 ? 0 : gpu.Average(),
+            GpuMemoryUsedMb = memoryUsed.Count == 0 ? 0 : memoryUsed.Max(),
+            GpuMemoryTotalMb = memoryTotal.Count == 0 ? 0 : memoryTotal.Max(),
             Duration = TimeSpan.FromMilliseconds(frames.Sum()),
             Precision = TelemetryPrecision.FrameAccurate
         }, frames.Count);

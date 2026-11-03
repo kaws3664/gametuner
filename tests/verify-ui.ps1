@@ -39,7 +39,7 @@ try {
         }
         $passed += [int]$counters.passed
     }
-    Write-Host "Verified: $passed passed, 0 failed. Native WPF screenshots: $env:GAMETUNER_UI_ARTIFACTS"
+    Write-Host "Verified: $passed passed, 0 failed. Native WPF verification and PNG: $env:GAMETUNER_UI_ARTIFACTS"
     Write-Host 'Excluded: opt-in NVIDIA/machine integrations and real gameplay. No games were launched or modified.'
 }
 finally {

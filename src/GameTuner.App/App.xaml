@@ -29,6 +29,9 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Background" Value="{DynamicResource BackdropBrush}" />
+            <Setter Property="desktop:WindowTheme.CaptionBackground" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="desktop:WindowTheme.CaptionForeground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="desktop:WindowTheme.FrameBorder" Value="{DynamicResource LineBrush}" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
         <Style TargetType="TextBlock">
@@ -245,10 +248,12 @@
         </Style>
         <Style TargetType="ListBox">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
         </Style>
         <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,0,8" />

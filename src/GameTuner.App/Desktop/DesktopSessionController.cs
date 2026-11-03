@@ -9,13 +9,11 @@ using GameTuner.App.Web;
 
 namespace GameTuner.App.Desktop;
 
-public sealed class DesktopSessionController(
-    MainViewModel viewModel,
-    ILocalConfigurationProvider configurationProvider,
-    ICaptureService captureService,
-    GameProcessService? processService = null) : IDisposable, INotifyPropertyChanged
+public sealed class DesktopSessionController : IDisposable, INotifyPropertyChanged
 {
-    private readonly GameProcessService _processService = processService ?? new GameProcessService();
+    private readonly GameProcessService _processService;
+    private readonly ILocalConfigurationProvider configurationProvider;
+    private readonly ICaptureService captureService;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dispatcher? _dispatcher = SynchronizationContext.Current is DispatcherSynchronizationContext
         ? Dispatcher.CurrentDispatcher : null;
@@ -24,16 +22,28 @@ public sealed class DesktopSessionController(
     private bool _playerSelectedGraphicsSettings;
     private bool _disposed;
     private bool _isBusy;
+    private bool _capturePending;
     private string _processStatus = "请选择正在运行的游戏进程。";
     private string _captureStatus = "尚未开始采集。也可直接导入已有日志。";
     private string _operationStatus = "";
 
-    public MainViewModel ViewModel { get; } = viewModel;
+    public DesktopSessionController(MainViewModel viewModel, ILocalConfigurationProvider configurationProvider,
+        ICaptureService captureService, GameProcessService? processService = null)
+    {
+        ViewModel = viewModel;
+        this.configurationProvider = configurationProvider;
+        this.captureService = captureService;
+        _processService = processService ?? new GameProcessService();
+        captureService.StateChanged += CaptureStateChanged;
+    }
+
+    public MainViewModel ViewModel { get; }
     public int SelectedProcessId => _selectedProcess?.Id ?? 0;
     public string ConfigurationStatus { get; private set; } = "";
     public string ConfigurationSource { get; private set; } = "";
     public bool GraphicsReadOnly { get; private set; }
     public bool IsRecording => captureService.Snapshot().IsRecording;
+    public bool HasPendingCapture => _capturePending || IsRecording;
     public bool IsBusy { get => _isBusy; private set { _isBusy = value; Changed(nameof(IsBusy)); } }
     public string ProcessStatus { get => _processStatus; private set { _processStatus = value; Changed(); } }
     public string CaptureStatus { get => _captureStatus; private set { _captureStatus = value; Changed(); } }
@@ -67,14 +77,19 @@ public sealed class DesktopSessionController(
     /// </summary>
     private void DetectRunningGame()
     {
-        if (ViewModel.Rounds.Count > 0) return;
-        var detected = _processService.DetectRunningGame();
+        if (_selectedProcess is not null) return;
+        var playerGame = ViewModel.Game;
+        var detected = string.IsNullOrWhiteSpace(playerGame)
+            ? _processService.DetectRunningGame() : _processService.DetectRunningGame(playerGame);
         if (detected is null)
         {
-            ProcessStatus = _processService.DescribeDetection(_processService.BuildCandidates(_processService.GetProcesses()));
+            ProcessStatus = string.IsNullOrWhiteSpace(playerGame)
+                ? _processService.DescribeDetection(_processService.BuildCandidates(_processService.GetProcesses()))
+                : "未能唯一匹配填写的游戏名称，请点击“选择游戏进程…”手动指定。";
             return;
         }
         SelectProcess(detected);
+        if (!string.IsNullOrWhiteSpace(playerGame)) ViewModel.Game = playerGame;
         ProcessStatus = $"已检测到游戏：{detected.ProcessName}.exe"
             + (string.IsNullOrWhiteSpace(detected.WindowTitle) ? "" : $"「{detected.WindowTitle}」")
             + $" · PID {detected.Id}；已自动填入，可点击“选择游戏进程…”改选。";
@@ -82,23 +97,30 @@ public sealed class DesktopSessionController(
 
     public void StartCapture() => StartCaptureCore();
 
-    public Task StartCaptureAsync() => RunActionAsync(() =>
+    public Task StartCaptureAsync() => RunActionAsync(async () =>
     {
+        if (_capturePending && !IsRecording) await StopAndAnalyzeCoreAsync();
+        if (!ViewModel.CanImport) return;
         StartCaptureCore();
-        return Task.CompletedTask;
     });
 
     private void StartCaptureCore()
     {
+        DetectRunningGame();
         var process = RequireRunningProcess();
         captureService.Start(process.Id, ViewModel.Game);
-        ViewModel.LogPath = captureService.Snapshot().LogPath;
+        var live = captureService.Snapshot();
+        _capturePending = live.IsRecording || live.LogPath.Length > 0;
+        ViewModel.LogPath = live.LogPath;
         RefreshCaptureStatus();
     }
 
-    public Task StopAndAnalyzeAsync() => RunActionAsync(async () =>
+    public Task StopAndAnalyzeAsync() => RunActionAsync(StopAndAnalyzeCoreAsync);
+
+    private async Task StopAndAnalyzeCoreAsync()
     {
         OperationStatus = "正在停止采集并分析本轮日志…";
+        _capturePending = false;
         var capturedPath = await captureService.StopForAnalysisAsync();
         RefreshCaptureStatus();
         if (capturedPath is null)
@@ -112,11 +134,37 @@ public sealed class DesktopSessionController(
         ViewModel.LogPath = capturedPath;
         await ViewModel.AnalyzeAsync();
         OperationStatus = ViewModel.Status;
-    });
+    }
+
+    /// <summary>Observes read-only process discovery and consumes an ended capture exactly once.</summary>
+    public Task RefreshAsync()
+    {
+        if (_disposed || IsBusy) return Task.CompletedTask;
+        return RunActionAsync(async () =>
+        {
+            if (_disposed) return;
+            if (_capturePending && !IsRecording) await StopAndAnalyzeCoreAsync();
+            if (_selectedProcess is null)
+            {
+                DetectRunningGame();
+                if (_selectedProcess is not null) await RefreshConfigurationAsync();
+            }
+        });
+    }
+
+    private async void CaptureStateChanged(object? sender, EventArgs args)
+    {
+        if (_disposed || IsRecording) return;
+        await RunActionAsync(async () =>
+        {
+            if (!_disposed && _capturePending && !IsRecording) await StopAndAnalyzeCoreAsync();
+        });
+    }
 
     public Task ImportExternalLogAsync(string path) => RunActionAsync(async () =>
     {
         OperationStatus = "正在导入外部日志…";
+        _capturePending = false;
         await captureService.StopForAnalysisAsync();
         RefreshCaptureStatus();
         await RefreshConfigurationAsync();
@@ -168,7 +216,7 @@ public sealed class DesktopSessionController(
         CaptureStatus = live.IsRecording ? live.Status.StartsWith("等待", StringComparison.Ordinal)
             ? "正在采集所选进程的性能数据。" : live.Status
             : _captureStatus.StartsWith("正在", StringComparison.Ordinal) ? "采集已停止。" : live.Status;
-        Changed(nameof(IsRecording)); Changed(nameof(Telemetry));
+        Changed(nameof(IsRecording)); Changed(nameof(HasPendingCapture)); Changed(nameof(Telemetry));
     }
 
     private void Changed([System.Runtime.CompilerServices.CallerMemberName] string? name = null) =>
@@ -218,7 +266,8 @@ public sealed class DesktopSessionController(
     public void Dispose()
     {
         if (_disposed) return;
-        captureService.Dispose();
         _disposed = true;
+        captureService.StateChanged -= CaptureStateChanged;
+        captureService.Dispose();
     }
 }

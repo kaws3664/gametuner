@@ -23,19 +23,20 @@ public class GameProcessService
     };
 
     /// <summary>Launchers and stores that own a game's window but are not the game itself.</summary>
-    private static readonly string[] LauncherMarkers =
-    [
+    private static readonly HashSet<string> LauncherNames = new(StringComparer.OrdinalIgnoreCase)
+    {
         "steam", "epicgameslauncher", "galaxyclient", "battle.net", "origin", "eadesktop",
         "ubisoftconnect", "upc", "uplay", "riotclient", "wegame", "goggalaxy", "playnite",
-        "launcher", "updater", "patcher", "anticheat", "easyanticheat", "beservice", "vgtray"
-    ];
+        "steamwebhelper", "riotclientservices", "riotclientux", "launcher", "updater",
+        "patcher", "anticheat", "easyanticheat", "easyanticheat_eos", "beservice", "vgtray"
+    };
 
     /// <summary>Browsers and players report whatever page they show, so their titles never identify a game.</summary>
-    private static readonly string[] BrowserMarkers =
-    [
+    private static readonly HashSet<string> BrowserNames = new(StringComparer.OrdinalIgnoreCase)
+    {
         "browser", "chrome", "chromium", "msedge", "edge", "firefox", "brave", "opera",
         "vivaldi", "safari", "webkit", "electron", "tabbit"
-    ];
+    };
 
     public virtual IReadOnlyList<GameProcessInfo> GetProcesses()
     {
@@ -48,9 +49,11 @@ public class GameProcessService
                 {
                     processes.Add(new GameProcessInfo(process.Id, process.ProcessName, process.MainWindowTitle));
                 }
-                catch (Exception)
+                catch (Exception exception) when (exception is InvalidOperationException
+                    or System.ComponentModel.Win32Exception or NotSupportedException)
                 {
                     // A process can exit or deny access while the snapshot is being read.
+                    continue;
                 }
             }
         }
@@ -65,17 +68,31 @@ public class GameProcessService
     public virtual GameProcessInfo? DetectRunningGame() =>
         DetectRunningGame(BuildCandidates(GetProcesses()));
 
+    public virtual GameProcessInfo? DetectRunningGame(string game) =>
+        DetectRunningGame(BuildCandidates(GetProcesses()), game);
+
     /// <summary>
     /// Picks the most likely running game, or returns null when the guess would not be
     /// trustworthy, so that the player is asked instead of shown a wrong game name.
     /// </summary>
-    public GameProcessInfo? DetectRunningGame(IReadOnlyList<GameWindowCandidate> candidates)
+    public GameProcessInfo? DetectRunningGame(IReadOnlyList<GameWindowCandidate> candidates, string game = "")
     {
-        var winner = candidates
-            .Where(IsLikelyGame)
-            .OrderByDescending(candidate => candidate.ScreenCoverage)
-            .ThenByDescending(candidate => candidate.WindowTitle.Length)
-            .FirstOrDefault();
+        var eligible = candidates.Where(IsEligible).ToArray();
+        GameWindowCandidate? winner;
+        if (!string.IsNullOrWhiteSpace(game))
+        {
+            var name = NormalizeName(game);
+            var matches = eligible.Where(candidate => NormalizeName(candidate.ProcessName) == name
+                || NormalizeName(candidate.WindowTitle) == name).ToArray();
+            winner = name.Length > 0 && matches.Length == 1 ? matches[0] : null;
+        }
+        else
+        {
+            winner = eligible.Where(candidate => candidate.ScreenCoverage >= FullScreenCoverage)
+                .OrderByDescending(candidate => candidate.ScreenCoverage)
+                .ThenByDescending(candidate => candidate.WindowTitle.Length)
+                .FirstOrDefault();
+        }
         return winner is null ? null : new GameProcessInfo(winner.Id, winner.ProcessName, winner.WindowTitle);
     }
 
@@ -104,50 +121,44 @@ public class GameProcessService
     /// <summary>Maps the live process table onto candidates with real window coverage.</summary>
     public virtual IReadOnlyList<GameWindowCandidate> BuildCandidates(IReadOnlyList<GameProcessInfo> processes)
     {
-        var screen = PrimaryScreenArea();
         var candidates = new List<GameWindowCandidate>(processes.Count);
         foreach (var process in processes)
         {
             if (string.IsNullOrWhiteSpace(process.ProcessName)) continue;
             if (process.WindowTitle.Length == 0) continue;
-            var coverage = 0d;
-            if (screen > 0)
-            {
-                var area = WindowArea(process.Id);
-                if (area > 0) coverage = Math.Clamp(area / screen, 0, 1);
-            }
+            var coverage = WindowCoverage(process.Id);
             candidates.Add(new GameWindowCandidate(process.Id, process.ProcessName, process.WindowTitle, coverage));
         }
         return candidates;
     }
 
-    private static bool IsLikelyGame(GameWindowCandidate candidate)
+    private static bool IsEligible(GameWindowCandidate candidate)
     {
         if (string.IsNullOrWhiteSpace(candidate.ProcessName)) return false;
         if (candidate.WindowTitle.Length == 0) return false;
         if (IgnoredNames.Contains(candidate.ProcessName)) return false;
         if (IsLauncher(candidate.ProcessName)) return false;
         if (IsBrowser(candidate.ProcessName)) return false;
-        // Full-screen play is the one signal that separates a running game from the
-        // ordinary windowed programs and overlays that also own a title.
-        return candidate.ScreenCoverage >= FullScreenCoverage;
+        return true;
     }
 
     private static bool IsLauncher(string processName) =>
-        LauncherMarkers.Any(marker => processName.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        LauncherNames.Contains(processName)
+        || processName.EndsWith("launcher", StringComparison.OrdinalIgnoreCase)
+        || processName.EndsWith("anticheat", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBrowser(string processName) =>
-        BrowserMarkers.Any(marker => processName.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        BrowserNames.Contains(processName)
+        || processName.EndsWith("browser", StringComparison.OrdinalIgnoreCase);
 
-    private static double PrimaryScreenArea()
+    private static string NormalizeName(string value)
     {
-        if (!OperatingSystem.IsWindows()) return 0;
-        var width = GetSystemMetrics(0);
-        var height = GetSystemMetrics(1);
-        return width > 0 && height > 0 ? (double)width * height : 0;
+        var name = value.Trim();
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        return string.Concat(name.Where(char.IsLetterOrDigit)).ToUpperInvariant();
     }
 
-    private static double WindowArea(int processId)
+    private static double WindowCoverage(int processId)
     {
         if (!OperatingSystem.IsWindows()) return 0;
         try
@@ -156,9 +167,19 @@ public class GameProcessService
             var handle = process.MainWindowHandle;
             if (handle == IntPtr.Zero) return 0;
             if (!GetWindowRect(handle, out var rect)) return 0;
+            var monitor = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+            if (!GetMonitorInfo(MonitorFromWindow(handle, 2), ref monitor)) return 0;
+            var placement = new WindowPlacement { Size = Marshal.SizeOf<WindowPlacement>() };
+            if (IsIconic(handle) && GetWindowPlacement(handle, ref placement))
+            {
+                // Alt-tabbing to the capture window can minimize an exclusive-fullscreen game.
+                rect = (placement.Flags & 2) != 0 ? monitor.Work : placement.NormalPosition;
+            }
             var width = rect.Right - rect.Left;
             var height = rect.Bottom - rect.Top;
-            return width > 0 && height > 0 ? (double)width * height : 0;
+            var screen = (double)(monitor.Monitor.Right - monitor.Monitor.Left)
+                * (monitor.Monitor.Bottom - monitor.Monitor.Top);
+            return width > 0 && height > 0 && screen > 0 ? Math.Clamp(width * (double)height / screen, 0, 1) : 0;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
             or System.ComponentModel.Win32Exception or NotSupportedException)
@@ -168,11 +189,41 @@ public class GameProcessService
     }
 
     [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
+    private static extern IntPtr MonitorFromWindow(IntPtr handle, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr handle, ref MonitorInfo info);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(IntPtr handle, out WindowRect rect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowPlacement(IntPtr handle, ref WindowPlacement placement);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowPoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowPlacement
+    {
+        public int Size;
+        public uint Flags;
+        public uint ShowCommand;
+        public WindowPoint MinPosition;
+        public WindowPoint MaxPosition;
+        public WindowRect NormalPosition;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WindowRect
@@ -181,5 +232,14 @@ public class GameProcessService
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public WindowRect Monitor;
+        public WindowRect Work;
+        public uint Flags;
     }
 }

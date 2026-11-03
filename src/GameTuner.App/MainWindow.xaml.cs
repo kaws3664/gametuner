@@ -1,5 +1,7 @@
 using System.IO;
+using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 using GameTuner.App.Desktop;
 using GameTuner.App.Processes;
 using GameTuner.App.ViewModels;
@@ -7,11 +9,12 @@ using GameTuner.Core.Infrastructure;
 
 namespace GameTuner.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly DesktopSessionController _session;
     private readonly INativeDialogService _dialogs;
     private readonly string _themeSettings;
+    private readonly DispatcherTimer _refreshTimer;
     private bool _closed;
 
     public MainWindow(DesktopSessionController session, INativeDialogService? dialogs = null, AppPaths? paths = null)
@@ -30,21 +33,35 @@ public partial class MainWindow : Window
         FillCommand = new DelegateCommand(Model.FillSelectedInputs);
         PreviewCommand = new DelegateCommand(Preview, () => Model.SelectedRound is not null);
         ExportCommand = new NativeAsyncCommand(Export, () => Model.SelectedRound is not null && !_session.IsBusy, ReportError);
-        StartCaptureCommand = new NativeAsyncCommand(() => _session.StartCaptureAsync(), () => !_session.IsBusy && Model.CanImport, ReportError);
-        StopAndAnalyzeCommand = new NativeAsyncCommand(() => _session.StopAndAnalyzeAsync(), () => !_session.IsBusy && Model.CanImport, ReportError);
+        StartCaptureCommand = new NativeAsyncCommand(() => _session.StartCaptureAsync(),
+            () => !_session.IsBusy && !_session.IsRecording && Model.CanImport, ReportError);
+        StopAndAnalyzeCommand = new NativeAsyncCommand(() => _session.StopAndAnalyzeAsync(),
+            () => !_session.IsBusy && _session.HasPendingCapture, ReportError);
         DataContext = this;
         InitializeComponent();
         _session.PropertyChanged += (_, _) => RefreshCommands();
         Model.PropertyChanged += (_, _) => RefreshCommands();
+        _refreshTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _refreshTimer.Tick += async (_, _) =>
+        {
+            try { await _session.RefreshAsync(); }
+            catch (Exception exception) { ReportError(exception); }
+        };
+        Loaded += (_, _) => _refreshTimer.Start();
         Closed += (_, _) =>
         {
             if (_closed) return;
             _closed = true;
+            _refreshTimer.Stop();
             _session.Dispose();
         };
     }
 
     public MainViewModel Model { get; }
+    public event PropertyChangedEventHandler? PropertyChanged;
     public string ProcessStatus => _session.ProcessStatus;
     public string CaptureStatus => _session.CaptureStatus;
     public string ConfigurationStatus => _session.ConfigurationStatus;
@@ -125,6 +142,9 @@ public partial class MainWindow : Window
         ExportCommand.RaiseCanExecuteChanged();
         StartCaptureCommand.RaiseCanExecuteChanged();
         StopAndAnalyzeCommand.RaiseCanExecuteChanged();
+        foreach (var name in new[] { nameof(ProcessStatus), nameof(CaptureStatus), nameof(ConfigurationStatus),
+            nameof(ConfigurationSource), nameof(GraphicsReadOnly), nameof(OperationStatus) })
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
     private void ReportError(Exception exception) =>

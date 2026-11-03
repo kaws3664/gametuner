@@ -22,6 +22,7 @@ public sealed record LiveTelemetryState
 /// <summary>Owns only the PresentMon child processes started by GameTuner.</summary>
 public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
 {
+    public event EventHandler? StateChanged;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly NvidiaSmiReader _gpuReader = new();
@@ -94,7 +95,7 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
                         "--process_id", processId.ToString(CultureInfo.InvariantCulture),
                         "--output_file", _logPath,
                         "--session_name", _sessionName,
-                        "--terminate_on_proc_exit", "--exclude_dropped", "--no_console_stats"
+                        "--terminate_on_proc_exit", "--exclude_dropped", "--no_console_stats", "--v1_metrics"
                     }) start.ArgumentList.Add(argument);
                     var presentMonProcess = Process.Start(start) ?? throw new InvalidOperationException("PresentMon 未能启动。");
                     _presentMon = presentMonProcess;
@@ -117,6 +118,7 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
             }
         }
         finally { _lifecycle.Release(); }
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task<string?> StopForAnalysisAsync()
@@ -175,35 +177,54 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
                 await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            lock (_sync) _status = "正在整理本轮监测日志…";
+        }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
             lock (_sync) _status = "本轮监测已结束，正在整理可用日志。";
         }
         finally
         {
-            await StopPresenterAsync(presentMon).ConfigureAwait(false);
-            var presenterError = await presentMon.StandardError.ReadToEndAsync().ConfigureAwait(false);
-            FinalizeLog();
-            lock (_sync)
+            var finalStatus = "采集日志未能整理完成。";
+            try
             {
-                _isRecording = false;
-                _status = File.Exists(_logPath)
-                    ? "本轮监测日志已准备好，点击分析即可生成建议。"
+                var stopError = await StopPresenterAsync(presentMon).ConfigureAwait(false);
+                var presenterError = await presentMon.StandardError.ReadToEndAsync().ConfigureAwait(false);
+                FinalizeLog();
+                finalStatus = File.Exists(_logPath)
+                    ? "本轮监测日志已准备好，将自动分析。"
                     : DescribeCaptureFailure(presenterError);
-                _captureTask = null;
-                _stopping?.Dispose(); _stopping = null;
-                presentMon.Dispose(); game.Dispose();
-                _presentMon = null; _game = null;
+                if (stopError.Length > 0) finalStatus += " " + stopError;
             }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                finalStatus = "采集日志整理失败：" + exception.Message;
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    _isRecording = false;
+                    _status = finalStatus;
+                    _clock?.Stop();
+                    _captureTask = null;
+                    _stopping?.Dispose(); _stopping = null;
+                    presentMon.Dispose(); game.Dispose();
+                    _presentMon = null; _game = null;
+                }
+            }
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    private async Task StopPresenterAsync(Process presentMon)
+    private async Task<string> StopPresenterAsync(Process presentMon)
     {
         try
         {
-            if (presentMon.HasExited) return;
+            if (presentMon.HasExited) return "";
             var start = new ProcessStartInfo(paths.PresentMonExecutable)
             {
                 UseShellExecute = false, CreateNoWindow = true,
@@ -212,12 +233,25 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
             start.ArgumentList.Add("--session_name"); start.ArgumentList.Add(_sessionName);
             start.ArgumentList.Add("--terminate_existing_session");
             using var stop = Process.Start(start);
-            if (stop is not null) await stop.WaitForExitAsync().ConfigureAwait(false);
+            if (stop is not null)
+                await stop.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
             await presentMon.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+            return "";
         }
-        catch
+        catch (Exception exception) when (exception is TimeoutException or InvalidOperationException
+            or System.ComponentModel.Win32Exception)
         {
-            try { if (!presentMon.HasExited) presentMon.Kill(); } catch { }
+            try
+            {
+                if (!presentMon.HasExited) presentMon.Kill();
+                await presentMon.WaitForExitAsync().ConfigureAwait(false);
+                return "PresentMon 正常停止未完成，已结束本程序拥有的采集进程：" + exception.Message;
+            }
+            catch (Exception cleanupError) when (cleanupError is InvalidOperationException
+                or System.ComponentModel.Win32Exception)
+            {
+                return "PresentMon 采集进程未能停止：" + cleanupError.Message;
+            }
         }
     }
 
@@ -226,6 +260,16 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
         if (string.IsNullOrEmpty(_logPath) || !File.Exists(_logPath)) return 0;
         using var stream = new FileStream(_logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         if (stream.Length < 40) return 0;
+        if (_frameColumn < 0)
+        {
+            using var headerReader = new StreamReader(stream, leaveOpen: true);
+            var header = headerReader.ReadLine();
+            if (header is null) return 0;
+            _frameColumn = PerformanceLogReader.SplitCsv(header)
+                .FindIndex(cell => cell.Equals("MsBetweenPresents", StringComparison.OrdinalIgnoreCase));
+            if (_frameColumn < 0) return 0;
+            stream.Seek(0, SeekOrigin.Begin);
+        }
         var skipPartial = stream.Length > 131072;
         if (skipPartial) stream.Seek(-131072, SeekOrigin.End);
         using var reader = new StreamReader(stream);
@@ -234,11 +278,6 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
         while (reader.ReadLine() is { } line)
         {
             var cells = PerformanceLogReader.SplitCsv(line);
-            if (_frameColumn < 0)
-            {
-                _frameColumn = cells.FindIndex(cell => cell.Equals("MsBetweenPresents", StringComparison.OrdinalIgnoreCase));
-                continue;
-            }
             if (_frameColumn >= cells.Count) continue;
             if (double.TryParse(cells[_frameColumn], NumberStyles.Float, CultureInfo.InvariantCulture, out var frame)
                 && frame is > 0 and < 10000) frames.Add(frame);
@@ -280,7 +319,7 @@ public sealed class LiveGameTelemetryMonitor(AppPaths paths) : ICaptureService
             writer.WriteLine(header + ",CPU Utilization(%),GPU Utilization(%),GPU Memory Used(MB),GPU Memory Total(MB)");
             var suffix = string.Join(',', new[] { cpu, gpu, used, total }.Select(value => value.ToString("0.###", CultureInfo.InvariantCulture)));
             while (reader.ReadLine() is { } line)
-                if (line.Length > 0) writer.WriteLine(line + suffix);
+                if (line.Length > 0) writer.WriteLine(line + "," + suffix);
         }
         if (File.Exists(temp) && new FileInfo(temp).Length > 0) File.Move(temp, _logPath, overwrite: true);
         else if (File.Exists(temp)) File.Delete(temp);

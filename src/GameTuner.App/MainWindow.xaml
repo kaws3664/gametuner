@@ -138,11 +138,11 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock FontWeight="SemiBold"><Run Text="{Binding RoundLabel}"/><Run Text=" · "/><Run Text="{Binding Tier}"/></TextBlock>
+                                            <TextBlock FontWeight="SemiBold"><Run Text="{Binding RoundLabel, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Tier, Mode=OneWay}"/></TextBlock>
                                             <TextBlock Text="{Binding BaselineDelta}" Style="{StaticResource HintText}"/>
                                         </StackPanel>
                                         <TextBlock Grid.Column="1" VerticalAlignment="Center" FontFamily="{StaticResource DisplayFont}" FontSize="17">
-                                            <Run Text="{Binding Average}"/><Run Text=" / "/><Run Text="{Binding Low}"/>
+                                            <Run Text="{Binding Average, Mode=OneWay}"/><Run Text=" / "/><Run Text="{Binding Low, Mode=OneWay}"/>
                                         </TextBlock>
                                     </Grid>
                                 </DataTemplate></ListBox.ItemTemplate>
@@ -157,7 +157,7 @@
                                 <ItemsControl.ItemTemplate><DataTemplate>
                                     <Border Background="{DynamicResource AccentSoftBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                                         <StackPanel>
-                                            <TextBlock FontWeight="SemiBold"><Run Text="{Binding Setting}"/><Run Text=" → "/><Run Text="{Binding SuggestedValue}"/></TextBlock>
+                                            <TextBlock FontWeight="SemiBold"><Run Text="{Binding Setting, Mode=OneWay}"/><Run Text=" → "/><Run Text="{Binding SuggestedValue, Mode=OneWay}"/></TextBlock>
                                             <TextBlock Text="{Binding Reason}" Style="{StaticResource HintText}"/>
                                         </StackPanel>
                                     </Border>

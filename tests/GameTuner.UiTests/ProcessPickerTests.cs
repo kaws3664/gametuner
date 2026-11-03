@@ -23,8 +23,48 @@ internal sealed class FakeGameProcessService : GameProcessService
     public override GameProcessInfo? DetectRunningGame() => DetectRunningGame(Snapshot);
 }
 
+internal sealed class SnapshotGameProcessService : GameProcessService
+{
+    public IReadOnlyList<GameWindowCandidate> Candidates { get; set; } = [];
+
+    public override IReadOnlyList<GameWindowCandidate> BuildCandidates(
+        IReadOnlyList<GameProcessInfo> processes) => Candidates;
+
+    public override GameProcessInfo? DetectRunningGame() => DetectRunningGame(Candidates);
+}
+
 public sealed class ProcessPickerTests
 {
+    [Theory]
+    [InlineData("MirrorsEdge")]
+    [InlineData("SteamWorldDig")]
+    [InlineData("OperaGame")]
+    public void Game_names_containing_browser_or_store_words_are_not_excluded(string processName)
+    {
+        var service = new GameProcessService();
+
+        var detected = service.DetectRunningGame(
+            [new GameWindowCandidate(42, processName, "Game Window", 1)]);
+
+        Assert.NotNull(detected);
+        Assert.Equal(42, detected.Id);
+        Assert.Equal(processName, detected.ProcessName);
+    }
+
+    [Theory]
+    [InlineData("steamwebhelper")]
+    [InlineData("RiotClientServices")]
+    [InlineData("ExampleLauncher")]
+    [InlineData("EasyAntiCheat_EOS")]
+    [InlineData("Tabbit Browser")]
+    public void Store_helpers_launchers_and_browsers_remain_excluded(string processName)
+    {
+        var service = new GameProcessService();
+
+        Assert.Null(service.DetectRunningGame(
+            [new GameWindowCandidate(42, processName, "Game Window", 1)]));
+    }
+
     [Fact]
     public void Detection_picks_the_fullscreen_game_and_skips_utilities_launchers_and_browsers()
     {

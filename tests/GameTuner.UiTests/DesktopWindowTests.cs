@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -19,6 +21,87 @@ namespace GameTuner.UiTests;
 
 public sealed class DesktopWindowTests
 {
+    [Fact]
+    public void Native_status_bindings_follow_process_selection_and_capture_lifecycle() => Sta.Run(async () =>
+    {
+        var capture = new FakeCaptureService(CreatePaths(out var paths));
+        using var session = CreateSession(paths, capture);
+        var window = new MainWindow(session, paths: paths);
+        var output = Environment.GetEnvironmentVariable("GAMETUNER_UI_ARTIFACTS")
+            ?? Path.Combine(paths.Root, "native-test-data");
+        Directory.CreateDirectory(output);
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            var processStatus = BoundText(window, nameof(MainWindow.ProcessStatus));
+            var captureStatus = BoundText(window, nameof(MainWindow.CaptureStatus));
+            Assert.Contains("选择", processStatus.Text);
+
+            session.SelectProcess(new(Environment.ProcessId, "TestDataGame", "Native test data"));
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+
+            Assert.Contains("TestDataGame", processStatus.Text);
+            session.ViewModel.Game = "TEST DATA / Capture Fixture";
+            session.ViewModel.Cpu = "TEST DATA CPU";
+            session.ViewModel.Gpu = "TEST DATA GPU";
+            session.ViewModel.Resolution = "1920 × 1080";
+            session.ViewModel.GraphicsSettings = "TEST DATA: shadows = medium";
+            await window.StartCaptureCommand.ExecuteAsync();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Contains("正在", captureStatus.Text);
+            RenderWindow(window, Path.Combine(output, "capture-test-data-recording-1180x780.png"));
+
+            await window.StopAndAnalyzeCommand.ExecuteAsync();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+
+            Assert.False(session.IsRecording);
+            Assert.Single(session.ViewModel.Rounds);
+            Assert.DoesNotContain("正在", captureStatus.Text);
+            Assert.Contains("分析完成", BoundText(window, nameof(MainWindow.OperationStatus)).Text);
+            var app = Assert.IsType<GameTuner.App.App>(Application.Current);
+            foreach (var dark in new[] { false, true })
+            {
+                app.SetTheme(dark);
+                var theme = dark ? "dark" : "light";
+                window.Width = 1180;
+                window.Height = 780;
+                RenderWindow(window, Path.Combine(output, $"capture-test-data-analyzed-{theme}-1180x780.png"));
+                window.Width = 960;
+                window.Height = 680;
+                RenderWindow(window, Path.Combine(output, $"capture-test-data-analyzed-{theme}-960x680.png"));
+            }
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void Minimized_native_window_retains_its_fullscreen_detection_coverage() => Sta.Run(async () =>
+    {
+        var window = new Window
+        {
+            Title = "Native detection test data",
+            WindowStyle = WindowStyle.None,
+            Left = 0, Top = 0,
+            Width = SystemParameters.PrimaryScreenWidth,
+            Height = SystemParameters.PrimaryScreenHeight
+        };
+        try
+        {
+            window.Show();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            var service = new GameProcessService();
+            GameProcessInfo[] snapshot = [new(Environment.ProcessId, "NativeFixture", window.Title)];
+            Assert.InRange(Assert.Single(service.BuildCandidates(snapshot)).ScreenCoverage, 0.95, 1);
+
+            window.WindowState = WindowState.Minimized;
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+
+            Assert.InRange(Assert.Single(service.BuildCandidates(snapshot)).ScreenCoverage, 0.95, 1);
+        }
+        finally { window.Close(); }
+    });
+
     [Fact]
     public void Theme_switch_changes_real_window_resources_and_persists_across_app_restarts() => Sta.Run(() =>
     {
@@ -230,13 +313,13 @@ public sealed class DesktopWindowTests
         import.Focus();
         Assert.True(import.IsKeyboardFocused);
 
-        import.RaiseEvent(KeyEvent(import, Key.O, ModifierKeys.Control));
+        RaiseControlKey(import, Key.O);
         await PumpAsync(() => session.ViewModel.Rounds.Count == 1 && !session.IsBusy);
 
         var save = Assert.IsType<Button>(window.FindName("SaveButton"));
         save.Focus();
         Assert.True(save.IsKeyboardFocused);
-        save.RaiseEvent(KeyEvent(save, Key.S, ModifierKeys.Control));
+        RaiseControlKey(save, Key.S);
         await PumpAsync(() => Directory.Exists(session.ViewModel.PlansDirectory)
             && Directory.GetFiles(session.ViewModel.PlansDirectory, "*.json").Length == 1);
 
@@ -341,6 +424,21 @@ public sealed class DesktopWindowTests
         Directory.Delete(paths.Root, recursive: true);
     });
 
+    private static TextBlock BoundText(DependencyObject root, string path)
+    {
+        var remaining = new Queue<DependencyObject>();
+        remaining.Enqueue(root);
+        while (remaining.TryDequeue(out var current))
+        {
+            if (current is TextBlock text
+                && BindingOperations.GetBindingExpression(text, TextBlock.TextProperty)?.ParentBinding.Path.Path == path)
+                return text;
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+                remaining.Enqueue(VisualTreeHelper.GetChild(current, index));
+        }
+        throw new InvalidOperationException($"No native TextBlock is bound to {path}.");
+    }
+
     private static AppPaths CreatePaths(out AppPaths paths)
     {
         paths = new AppPaths(Path.Combine(Path.GetTempPath(), "GameTuner-WindowTests", Guid.NewGuid().ToString("N")));
@@ -370,8 +468,37 @@ public sealed class DesktopWindowTests
 
     private static async Task PumpAsync(Func<bool> completed)
     {
-        while (!completed()) await Task.Delay(10);
+        var timeout = Stopwatch.StartNew();
+        while (!completed() && timeout.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(10);
+        Assert.True(completed(), "The native command did not complete within five seconds.");
     }
+
+    // KeyGesture reads the Windows thread's modifier state, not the event's
+    // KeyboardDevice. Restore that state after exercising the real routed binding.
+    private static void RaiseControlKey(UIElement target, Key key)
+    {
+        var original = new byte[256];
+        Assert.True(GetKeyboardState(original));
+        var pressed = (byte[])original.Clone();
+        pressed[0x11] = pressed[0xa2] = 0x80;
+        Assert.True(SetKeyboardState(pressed));
+        try
+        {
+            target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(target), 0, key)
+            {
+                RoutedEvent = Keyboard.KeyDownEvent
+            });
+        }
+        finally { Assert.True(SetKeyboardState(original)); }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetKeyboardState(byte[] state);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetKeyboardState(byte[] state);
 
     private static void RenderWindow(Window window, string path)
     {
@@ -410,6 +537,7 @@ internal static class Sta
     private static bool _applicationCreated;
 
     public static void Run(Action action) => RunAsync(() => { action(); return Task.CompletedTask; }).GetAwaiter().GetResult();
+    public static void Run(Func<Task> action) => RunAsync(action).GetAwaiter().GetResult();
 
     public static Task RunAsync(Func<Task> action)
     {

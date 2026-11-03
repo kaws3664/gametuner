@@ -23,6 +23,197 @@ public sealed class DesktopSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task Game_started_after_initialization_is_detected_when_capture_begins()
+    {
+        var processes = new SnapshotGameProcessService();
+        var capture = new FakeCaptureService(_paths);
+        using var session = new DesktopSessionController(
+            new MainViewModel(new LogAnalysisService(), new JsonFileStore(), _paths),
+            new FakeConfigurationProvider(), capture, processes);
+        await session.InitializeAsync();
+        Assert.Equal(0, session.SelectedProcessId);
+        processes.Candidates = [new(Environment.ProcessId, "LateGame", "Late Game", 1)];
+
+        await session.StartCaptureAsync();
+
+        Assert.Equal(Environment.ProcessId, session.SelectedProcessId);
+        Assert.Equal("LateGame", session.ViewModel.Game);
+        Assert.Equal(Environment.ProcessId, Assert.Single(capture.StartedProcessIds));
+        Assert.True(session.IsRecording, session.OperationStatus);
+    }
+
+    [Fact]
+    public async Task Entered_game_name_matches_a_windowed_game_instead_of_an_unrelated_fullscreen_window()
+    {
+        var processes = new SnapshotGameProcessService
+        {
+            Candidates =
+            [
+                new(Environment.ProcessId, "SomeWindowedGame", "Some Windowed Game - Menu", 0.35),
+                new(int.MaxValue, "UnrelatedGame", "Unrelated Fullscreen Game", 1)
+            ]
+        };
+        var model = new MainViewModel(new LogAnalysisService(), new JsonFileStore(), _paths)
+        {
+            Game = "Some Windowed Game"
+        };
+        using var session = new DesktopSessionController(
+            model, new FakeConfigurationProvider(), new FakeCaptureService(_paths), processes);
+
+        await session.InitializeAsync();
+
+        Assert.Equal(Environment.ProcessId, session.SelectedProcessId);
+        Assert.Equal("Some Windowed Game", model.Game);
+    }
+
+    [Fact]
+    public async Task Saved_comparison_resolves_its_running_game_without_overwriting_its_rounds()
+    {
+        var capture = new FakeCaptureService(_paths);
+        using (var previous = CreateSession(capture, out _))
+        {
+            previous.SelectProcess(new(Environment.ProcessId, "SavedGame", "Saved Game"));
+            previous.StartCapture();
+            await previous.StopAndAnalyzeAsync();
+            await previous.ViewModel.SaveAsync();
+        }
+        var processes = new SnapshotGameProcessService
+        {
+            Candidates =
+            [
+                new(Environment.ProcessId, "SavedGame", "Saved Game", 0.35),
+                new(int.MaxValue, "UnrelatedGame", "Unrelated Fullscreen Game", 1)
+            ]
+        };
+        var nextCapture = new FakeCaptureService(_paths);
+        using var session = new DesktopSessionController(
+            new MainViewModel(new LogAnalysisService(), new JsonFileStore(), _paths),
+            new FakeConfigurationProvider(), nextCapture, processes);
+
+        await session.InitializeAsync();
+        await session.StartCaptureAsync();
+
+        Assert.Equal(Environment.ProcessId, session.SelectedProcessId);
+        Assert.Equal("SavedGame", session.ViewModel.Game);
+        Assert.Single(session.ViewModel.Rounds);
+        Assert.Equal(Environment.ProcessId, Assert.Single(nextCapture.StartedProcessIds));
+    }
+
+    [Fact]
+    public async Task Manual_process_selection_survives_initialization_and_capture_detection()
+    {
+        var processes = new SnapshotGameProcessService
+        {
+            Candidates = [new(int.MaxValue, "OtherGame", "Other Game", 1)]
+        };
+        var capture = new FakeCaptureService(_paths);
+        using var session = new DesktopSessionController(
+            new MainViewModel(new LogAnalysisService(), new JsonFileStore(), _paths),
+            new FakeConfigurationProvider(), capture, processes);
+        var selected = CurrentProcess();
+        session.SelectProcess(selected);
+
+        await session.InitializeAsync();
+        await session.StartCaptureAsync();
+
+        Assert.Equal(selected.Id, session.SelectedProcessId);
+        Assert.Equal(selected.ProcessName, session.ViewModel.Game);
+        Assert.Equal(selected.Id, Assert.Single(capture.StartedProcessIds));
+    }
+
+    [Fact]
+    public Task Background_capture_completion_automatically_analyzes_the_finalized_log() => Sta.RunAsync(async () =>
+    {
+        var capture = new FakeCaptureService(_paths);
+        using var session = CreateSession(capture, out _);
+        var window = new GameTuner.App.MainWindow(session, paths: _paths);
+        session.SelectProcess(CurrentProcess());
+        window.Show();
+        try
+        {
+            await window.StartCaptureCommand.ExecuteAsync();
+            var source = Assert.Single(capture.StartedPaths);
+
+            await Task.Run(capture.Complete);
+            await WaitFor(() => session.ViewModel.Rounds.Count == 1 && !session.IsBusy);
+
+            var round = Assert.Single(session.ViewModel.Rounds);
+            Assert.Equal(source, round.Round.Report.SourcePath);
+            Assert.Equal(40, round.Round.Report.Metrics.AverageFps);
+            Assert.False(session.IsRecording);
+            Assert.Empty(capture.Snapshot().LogPath);
+            Assert.Contains("分析完成", session.OperationStatus);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public Task Late_completion_notification_does_not_reanalyze_or_overwrite_the_result() => Sta.RunAsync(async () =>
+    {
+        var capture = new FakeCaptureService(_paths);
+        using var session = CreateSession(capture, out _);
+        var window = new GameTuner.App.MainWindow(session, paths: _paths);
+        session.SelectProcess(CurrentProcess());
+        window.Show();
+        try
+        {
+            await window.StartCaptureCommand.ExecuteAsync();
+            await window.StopAndAnalyzeCommand.ExecuteAsync();
+            var status = session.OperationStatus;
+
+            await Task.Run(capture.Complete);
+            await Task.Delay(1100);
+
+            Assert.Single(session.ViewModel.Rounds);
+            Assert.Equal(status, session.OperationStatus);
+            Assert.Equal(1, capture.StopCallCount);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public Task Empty_completed_capture_reports_analysis_failure_without_adding_a_round() => Sta.RunAsync(async () =>
+    {
+        var capture = new FakeCaptureService(_paths);
+        using var session = CreateSession(capture, out _);
+        var window = new GameTuner.App.MainWindow(session, paths: _paths);
+        session.SelectProcess(CurrentProcess());
+        window.Show();
+        try
+        {
+            await window.StartCaptureCommand.ExecuteAsync();
+            File.WriteAllText(Assert.Single(capture.StartedPaths),
+                "Timestamp (Elapsed time in seconds),PID,FPS,FPS 1(%) Low\n");
+
+            await Task.Run(capture.Complete);
+            await WaitFor(() => capture.StopCallCount == 1 && !session.IsBusy);
+
+            Assert.Empty(session.ViewModel.Rounds);
+            Assert.False(session.IsRecording);
+            Assert.Contains("没有新增记录", session.OperationStatus);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public Task Disposed_session_ignores_background_capture_completion() => Sta.RunAsync(async () =>
+    {
+        var capture = new FakeCaptureService(_paths);
+        var session = CreateSession(capture, out _);
+        var window = new GameTuner.App.MainWindow(session, paths: _paths);
+        session.SelectProcess(CurrentProcess());
+        window.Show();
+        await window.StartCaptureCommand.ExecuteAsync();
+        window.Close();
+
+        await Task.Run(capture.Complete);
+        await System.Windows.Threading.Dispatcher.Yield();
+
+        Assert.Empty(session.ViewModel.Rounds);
+        Assert.Equal(0, capture.StopCallCount);
+    });
+
+    [Fact]
     public async Task Two_rounds_consume_two_new_capture_paths()
     {
         var capture = new FakeCaptureService(_paths);
@@ -370,6 +561,14 @@ public sealed class DesktopSessionTests : IDisposable
             $"Timestamp (Elapsed time in seconds),PID,FPS,FPS 1(%) Low,CPU Utilization(%),GPU1 Utilization(%)\n0,{processId},{fps},{fps - 10},55,97\n300,{processId},{fps},{fps - 10},55,97\n"));
     }
 
+    private static async Task WaitFor(Func<bool> completed)
+    {
+        var clock = Stopwatch.StartNew();
+        while (!completed() && clock.Elapsed < TimeSpan.FromSeconds(3))
+            await Task.Delay(10);
+        Assert.True(completed(), "The capture completion did not reach automatic analysis.");
+    }
+
     private static int[] PresentMonProcessIds() =>
         Process.GetProcessesByName("PresentMon").Select(process =>
         {
@@ -502,6 +701,7 @@ internal sealed class FakeCaptureService(AppPaths paths) : ICaptureService
     public List<int> StartedProcessIds { get; } = [];
     public int StopCallCount { get; private set; }
     public int DisposeCallCount { get; private set; }
+    public event EventHandler? StateChanged;
 
     public void Start(int processId, string game)
     {
@@ -513,6 +713,13 @@ internal sealed class FakeCaptureService(AppPaths paths) : ICaptureService
         StartedProcessIds.Add(processId);
         _pendingPath = path;
         _isRecording = true;
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Complete()
+    {
+        _isRecording = false;
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public Task<string?> StopForAnalysisAsync()
@@ -521,7 +728,8 @@ internal sealed class FakeCaptureService(AppPaths paths) : ICaptureService
         _isRecording = false;
         var path = _pendingPath;
         _pendingPath = "";
-        return Task.FromResult<string?>(path.Length == 0 ? null : path);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        return Task.FromResult<string?>(path.Length == 0 || !File.Exists(path) ? null : path);
     }
 
     public LiveTelemetryState Snapshot() => new()

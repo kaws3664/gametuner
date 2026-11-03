@@ -94,12 +94,13 @@ public sealed class ProcessPickerTests
     }
 
     [Fact]
-    public void A_windowed_game_is_not_claimed_as_detected_but_is_explained()
+    public void Ambiguous_windowed_programs_require_player_selection_and_are_explained()
     {
         var service = new GameProcessService();
         var candidates = new GameWindowCandidate[]
         {
-            new(30, "SomeWindowedGame", "Some Game - Windowed", 0.35)
+            new(30, "SomeWindowedGame", "Some Game - Windowed", 0.35),
+            new(31, "AnotherProgram", "Another Window", 0.4)
         };
 
         Assert.Null(service.DetectRunningGame(candidates));

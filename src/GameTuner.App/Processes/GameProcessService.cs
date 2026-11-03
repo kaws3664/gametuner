@@ -88,10 +88,14 @@ public class GameProcessService
         }
         else
         {
+            // Coverage only ranks candidates; it must not gate detection. A single
+            // windowed game is unambiguous, so take it even below the threshold
+            // instead of telling the player nothing was found.
             winner = eligible.Where(candidate => candidate.ScreenCoverage >= FullScreenCoverage)
                 .OrderByDescending(candidate => candidate.ScreenCoverage)
                 .ThenByDescending(candidate => candidate.WindowTitle.Length)
-                .FirstOrDefault();
+                .FirstOrDefault()
+                ?? (eligible.Length == 1 ? eligible[0] : null);
         }
         return winner is null ? null : new GameProcessInfo(winner.Id, winner.ProcessName, winner.WindowTitle);
     }

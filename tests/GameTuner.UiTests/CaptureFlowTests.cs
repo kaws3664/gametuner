@@ -15,6 +15,15 @@ using GameTuner.Core.Telemetry;
 
 namespace GameTuner.UiTests;
 
+public sealed class PresentMonFactAttribute : FactAttribute
+{
+    public PresentMonFactAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("GAMETUNER_RUN_PRESENTMON") != "1")
+            Skip = "Set GAMETUNER_RUN_PRESENTMON=1 in an elevated test process to capture real native frames.";
+    }
+}
+
 public sealed class CaptureFlowTests : IDisposable
 {
     private readonly AppPaths _paths = new(Path.Combine(
@@ -32,7 +41,7 @@ public sealed class CaptureFlowTests : IDisposable
     }
 
     [Fact]
-    public void Capture_retries_detection_when_the_game_appears_after_startup() => Sta.Run(async () =>
+    public Task Capture_retries_detection_when_the_game_appears_after_startup() => Sta.RunAsync(async () =>
     {
         var processes = new MutableProcessService();
         var capture = new FakeCaptureService(_paths);
@@ -51,6 +60,25 @@ public sealed class CaptureFlowTests : IDisposable
         }
         finally { window.Close(); }
     });
+
+    [Theory]
+    [InlineData(.35)]
+    [InlineData(.59)]
+    public async Task Startup_detects_a_single_windowed_game_without_a_player_entered_name(double coverage)
+    {
+        var processes = new MutableProcessService
+        {
+            Candidates =
+            [
+                new(12, "steam", "Steam", .9),
+                new(42, "SomeGame", "Some Game", coverage)
+            ]
+        };
+        using var session = CreateSession(new FakeCaptureService(_paths), processes);
+        await session.InitializeAsync();
+        Assert.Equal(42, session.SelectedProcessId);
+        Assert.Equal("SomeGame", session.ViewModel.Game);
+    }
 
     [Fact]
     public async Task Player_entered_game_name_resolves_a_windowed_process()
@@ -107,8 +135,51 @@ public sealed class CaptureFlowTests : IDisposable
         Assert.Equal(50, report.Metrics.AverageFps, 6);
     }
 
+    [PresentMonFact]
+    [Trait("Category", "PresentMonIntegration")]
+    public Task Bundled_presentMon_records_real_frames_from_a_native_test_window()
+    {
+        if (Environment.GetEnvironmentVariable("GAMETUNER_RUN_PRESENTMON") != "1") return Task.CompletedTask;
+        return Sta.RunAsync(async () =>
+        {
+            var panel = new Border();
+            var window = new Window { Title = "GameTuner TEST DATA - native capture fixture", Width = 400, Height = 300, Content = panel };
+            using var monitor = new LiveGameTelemetryMonitor(_paths);
+            window.Show();
+            try
+            {
+                monitor.Start(Environment.ProcessId, "NativeWpfFixture");
+                var path = monitor.Snapshot().LogPath;
+                for (var index = 0; index < 150; index++)
+                {
+                    panel.Background = new SolidColorBrush(Color.FromRgb((byte)(index % 255), 60, 120));
+                    await Task.Delay(20);
+                }
+                var finalized = await monitor.StopForAnalysisAsync();
+                Assert.True(finalized is not null, monitor.Snapshot().Status);
+                Assert.Equal(path, finalized);
+                var output = Environment.GetEnvironmentVariable("GAMETUNER_CAPTURE_ARTIFACTS");
+                if (output is not null)
+                {
+                    Directory.CreateDirectory(output);
+                    File.Copy(path, Path.Combine(output, "native-wpf-real-presentmon.csv"), overwrite: true);
+                }
+                Assert.Contains(PerformanceLogReader.SplitCsv(File.ReadLines(path).First()),
+                    column => column.Equals("MsBetweenPresents", StringComparison.OrdinalIgnoreCase));
+                var report = await new LogAnalysisService().AnalyzeAsync(path, new() { TargetFps = 60 }, ManualQualityTier.Unknown);
+                Assert.True(report.SampleCount >= 10, monitor.Snapshot().Status);
+                if (output is not null)
+                {
+                    File.WriteAllText(Path.Combine(output, "native-wpf-real-presentmon.txt"),
+                        $"TEST DATA: native WPF window; no game launched.{Environment.NewLine}Samples={report.SampleCount}; FPS={report.Metrics.AverageFps:0.###}");
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Fact]
-    public void Native_window_analyzes_a_finished_capture_without_another_click() => Sta.Run(async () =>
+    public Task Native_window_analyzes_a_finished_capture_without_another_click() => Sta.RunAsync(async () =>
     {
         var capture = new CompletingCaptureService(_paths);
         using var session = CreateSession(capture);
@@ -131,7 +202,7 @@ public sealed class CaptureFlowTests : IDisposable
     });
 
     [Fact]
-    public void Native_window_refreshes_process_and_capture_text_bindings() => Sta.Run(async () =>
+    public Task Native_window_refreshes_process_and_capture_text_bindings() => Sta.RunAsync(async () =>
     {
         using var session = CreateSession(new FakeCaptureService(_paths));
         var window = new MainWindow(session, paths: _paths);

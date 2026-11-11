@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:GameTuner.App.ViewModels"
         Title="GameTuner · 离线性能工作台" Width="1180" Height="780" MinWidth="960" MinHeight="680"
+        Style="{StaticResource {x:Type Window}}"
         Icon="/GameTuner.App;component/Assets/GameTuner.ico" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <vm:EnumChoiceConverter x:Key="EnumChoiceConverter"/>

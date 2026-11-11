@@ -7,3 +7,4 @@ artifacts/
 *.suo
 debug.log
 /gametuner/
+.alma-snapshots
